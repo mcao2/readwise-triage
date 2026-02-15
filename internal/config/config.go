@@ -128,3 +128,29 @@ theme: "default"
 
 	return os.WriteFile(configPath, []byte(example), 0600)
 }
+
+// Save writes the configuration to the config file
+// Only saves non-sensitive settings (theme, mode preferences)
+// Does NOT save tokens (those should be in env vars)
+func (c *Config) Save() error {
+	configDir, err := EnsureConfigDir()
+	if err != nil {
+		return err
+	}
+
+	configPath := filepath.Join(configDir, "config.yaml")
+
+	// Create config struct with only non-sensitive data
+	safeConfig := &Config{
+		DefaultDaysAgo: c.DefaultDaysAgo,
+		Theme:          c.Theme,
+	}
+
+	data, err := yaml.Marshal(safeConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	header := []byte("# Readwise Triage Configuration\n# Note: Sensitive values (tokens) should be set via environment variables\n\n")
+	return os.WriteFile(configPath, append(header, data...), 0600)
+}

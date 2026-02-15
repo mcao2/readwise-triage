@@ -2,11 +2,12 @@ package ui
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mcao2/readwise-triage/internal/config"
+	"github.com/mcao2/readwise-triage/internal/readwise"
 )
 
 // State represents the current application state
@@ -74,6 +75,9 @@ type Model struct {
 	// Progress
 	progress      float64
 	statusMessage string
+
+	// Config
+	cfg *config.Config
 }
 
 // Item represents a displayable item in the list
@@ -88,15 +92,35 @@ type Item struct {
 
 // NewModel creates a new UI model
 func NewModel() Model {
+	// Load config
+	cfg, err := config.Load()
+	if err != nil {
+		cfg = &config.Config{DefaultDaysAgo: 7}
+	}
+
+	// Determine theme
+	themeIndex := 0
+	themeName := cfg.Theme
+	if themeName == "" {
+		themeName = "default"
+	}
+	for i, name := range GetThemeNames() {
+		if name == themeName {
+			themeIndex = i
+			break
+		}
+	}
+
 	m := Model{
 		state:         StateConfig,
 		useLLMTriage:  true,
-		styles:        DefaultStyles(),
+		styles:        NewStyles(Themes[themeName]),
 		keys:          DefaultKeyMap(),
 		selectedIndex: 0,
 		cursor:        0,
 		selected:      make(map[int]bool),
-		themeIndex:    0,
+		themeIndex:    themeIndex,
+		cfg:           cfg,
 	}
 	m.listView = NewListView(80, 24)
 	return m
@@ -105,7 +129,14 @@ func NewModel() Model {
 func (m *Model) cycleTheme() {
 	themeNames := GetThemeNames()
 	m.themeIndex = (m.themeIndex + 1) % len(themeNames)
-	m.styles = NewStyles(Themes[themeNames[m.themeIndex]])
+	newTheme := themeNames[m.themeIndex]
+	m.styles = NewStyles(Themes[newTheme])
+
+	// Save to config
+	if m.cfg != nil {
+		m.cfg.Theme = newTheme
+		_ = m.cfg.Save()
+	}
 }
 
 // Init initializes the model
@@ -135,6 +166,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.items = msg.Items
 		m.listView.SetItems(msg.Items)
 		m.state = StateReviewing
+
+	case ErrorMsg:
+		m.statusMessage = msg.Error.Error()
+		m.state = StateConfig
 	}
 
 	return m, nil
@@ -210,6 +245,11 @@ type ItemsLoadedMsg struct {
 	Items []Item
 }
 
+// ErrorMsg signals an error occurred
+type ErrorMsg struct {
+	Error error
+}
+
 // State handlers
 func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
@@ -228,16 +268,43 @@ func (m Model) startFetching() tea.Cmd {
 		func() tea.Msg {
 			return StateChangeMsg{State: StateFetching}
 		},
-		tea.Tick(100, func(time.Time) tea.Msg {
-			// Simulate API delay then load items
-			return ItemsLoadedMsg{
-				Items: []Item{
-					{ID: "1", Title: "Sample Article 1: Introduction to Go", Action: "read_now", Priority: "high"},
-					{ID: "2", Title: "Sample Article 2: Bubble Tea Tutorial", Action: "later", Priority: "medium"},
-					{ID: "3", Title: "Sample Article 3: Archived Reference", Action: "archive", Priority: "low"},
-				},
+		func() tea.Msg {
+			// Check if token is configured
+			if m.cfg == nil || m.cfg.ReadwiseToken == "" {
+				return ErrorMsg{Error: fmt.Errorf("READWISE_TOKEN not configured. Set it via environment variable or config file")}
 			}
-		}),
+
+			// Create readwise client
+			client, err := readwise.NewClient(m.cfg.ReadwiseToken)
+			if err != nil {
+				return ErrorMsg{Error: err}
+			}
+
+			// Fetch inbox items
+			opts := readwise.FetchOptions{
+				DaysAgo:  m.cfg.DefaultDaysAgo,
+				Location: "new",
+			}
+			items, err := client.GetInboxItems(opts)
+			if err != nil {
+				return ErrorMsg{Error: err}
+			}
+
+			// Convert to UI items
+			uiItems := make([]Item, len(items))
+			for i, item := range items {
+				uiItems[i] = Item{
+					ID:       item.ID,
+					Title:    item.Title,
+					Action:   "",
+					Priority: "",
+					URL:      item.URL,
+					Summary:  item.Summary,
+				}
+			}
+
+			return ItemsLoadedMsg{Items: uiItems}
+		},
 	)
 }
 
@@ -336,6 +403,15 @@ func (m Model) configView() string {
 	themeText := m.styles.Normal.Render("Theme: " + Themes[themeNames[m.themeIndex]].Name)
 
 	help := m.styles.Help.Render("Enter: start • m: toggle mode • t: change theme • q: quit")
+
+	var errorText string
+	if m.statusMessage != "" {
+		errorText = m.styles.Error.Render("Error: " + m.statusMessage)
+	}
+
+	if errorText != "" {
+		return lipgloss.JoinVertical(lipgloss.Center, title, "", modeText, "", themeText, "", errorText, "", help)
+	}
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", modeText, "", themeText, "", help)
 }
 
