@@ -54,6 +54,24 @@ func TestExtractJSONArray(t *testing.T) {
 			want:    `[{"id": "1", "triage_decision": {"action": "read_now", "priority": "high"}}]`,
 			wantErr: false,
 		},
+		{
+			name:    "multiple code blocks returns last",
+			content: "Some text\n```json\n[{\"id\": \"1\"}]\n```\nMore text\n```json\n[{\"id\": \"2\"}]\n```",
+			want:    `[{"id": "2"}]`,
+			wantErr: false,
+		},
+		{
+			name:    "LLM response with nested arrays in objects",
+			content: "Here's the triage results:\n```json\n[\n  {\n    \"id\": \"123\",\n    \"title\": \"Test\",\n    \"triage_decision\": {\"action\": \"read_now\"},\n    \"content_analysis\": {\"key_topics\": [\"topic1\"]}\n  }\n]\n```\n\n**Today's Top 3**: item1, item2",
+			want:    "[\n  {\n    \"id\": \"123\",\n    \"title\": \"Test\",\n    \"triage_decision\": {\"action\": \"read_now\"},\n    \"content_analysis\": {\"key_topics\": [\"topic1\"]}\n  }\n]",
+			wantErr: false,
+		},
+		{
+			name:    "no code blocks plain array at end",
+			content: "Some explanation\n[{\"id\": \"1\"}]",
+			want:    `[{"id": "1"}]`,
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

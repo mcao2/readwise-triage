@@ -59,12 +59,24 @@ func (m *Model) ExportItemsToJSON() (string, error) {
 	}
 
 	promptPart := triage.PromptTemplate
-	idx := strings.LastIndex(promptPart, "**待处理的 inbox 条目：**")
+	markers := []string{
+		"**Inbox items to process:**",
+		"**待处理的 inbox 条目：**",
+	}
+	idx := -1
+	marker := ""
+	for _, m := range markers {
+		i := strings.LastIndex(promptPart, m)
+		if i > idx {
+			idx = i
+			marker = m
+		}
+	}
 	if idx == -1 {
 		return string(data), nil
 	}
 
-	output := promptPart[:idx+len("**待处理的 inbox 条目：**\n\n")]
+	output := promptPart[:idx+len(marker)+2]
 	output += "```json\n"
 	output += string(data)
 	output += "\n```"
@@ -223,74 +235,115 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 	return applied, nil
 }
 
-// extractJSONArray finds and extracts JSON array from content
+func isJSONArray(s string) bool {
+	s = strings.TrimSpace(s)
+	return strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")
+}
+
 func extractJSONArray(content string) string {
-	// Try to find JSON in code blocks first
 	content = strings.TrimSpace(content)
 
-	// Check for markdown code blocks
 	if strings.Contains(content, "```") {
-		// Extract content between ```json and ``` or ``` and ```
-		start := strings.Index(content, "```json")
-		if start == -1 {
-			start = strings.Index(content, "```")
+		arrays := extractJSONArraysFromCodeBlocks(content)
+		if len(arrays) > 0 {
+			return arrays[len(arrays)-1]
 		}
-		if start != -1 {
-			// Skip the ``` marker
-			start += 3
-			// Skip language specifier if present
-			for start < len(content) && (content[start] == '\n' || content[start] == ' ' || content[start] == '\r') {
-				start++
+	}
+
+	arrays := extractAllJSONArrays(content)
+	if len(arrays) > 0 {
+		return arrays[len(arrays)-1]
+	}
+
+	return ""
+}
+
+func extractJSONArraysFromCodeBlocks(content string) []string {
+	var results []string
+	marker := "```"
+
+	start := 0
+	for {
+		idx := strings.Index(content[start:], marker)
+		if idx == -1 {
+			break
+		}
+		idx += start
+		codeStart := idx + len(marker)
+
+		if codeStart < len(content) && content[codeStart] == 'j' {
+			codeStart++
+			for codeStart < len(content) && (content[codeStart] >= 'a' && content[codeStart] <= 'z') {
+				codeStart++
 			}
-			if start < len(content) && (content[start] >= 'a' && content[start] <= 'z') {
-				for start < len(content) && content[start] != '\n' {
-					start++
+		}
+
+		for codeStart < len(content) && (content[codeStart] == '\n' || content[codeStart] == ' ') {
+			codeStart++
+		}
+
+		end := strings.Index(content[codeStart:], marker)
+		if end == -1 {
+			break
+		}
+		end += codeStart
+
+		codeContent := strings.TrimSpace(content[codeStart:end])
+		if isJSONArray(codeContent) {
+			results = append(results, codeContent)
+		}
+
+		start = end + len(marker)
+	}
+
+	return results
+}
+
+func extractAllJSONArrays(content string) []string {
+	var results []string
+
+	startIdx := 0
+	for {
+		idx := strings.Index(content[startIdx:], "[")
+		if idx == -1 {
+			break
+		}
+		idx += startIdx
+
+		depth := 0
+		endIdx := -1
+		for i := idx; i < len(content); i++ {
+			switch content[i] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			case '[':
+				depth++
+			case ']':
+				depth--
+				if depth == 0 {
+					endIdx = i
+					break
 				}
 			}
-
-			end := strings.Index(content[start:], "```")
-			if end != -1 {
-				content = content[start : start+end]
-			}
-		}
-	}
-
-	content = strings.TrimSpace(content)
-
-	// Find the JSON array
-	startIdx := strings.Index(content, "[")
-	if startIdx == -1 {
-		return ""
-	}
-
-	// Find matching closing bracket
-	depth := 0
-	endIdx := -1
-	for i := startIdx; i < len(content); i++ {
-		switch content[i] {
-		case '{':
-			depth++
-		case '}':
-			depth--
-		case '[':
-			depth++
-		case ']':
-			depth--
-			if depth == 0 {
-				endIdx = i
+			if endIdx != -1 {
 				break
 			}
 		}
+
 		if endIdx != -1 {
+			arr := strings.TrimSpace(content[idx : endIdx+1])
+			if isJSONArray(arr) {
+				results = append(results, arr)
+			}
+			startIdx = endIdx + 1
+		} else {
 			break
 		}
 	}
 
-	if endIdx == -1 {
-		return ""
-	}
-
-	return strings.TrimSpace(content[startIdx : endIdx+1])
+	return results
 }
 
 // ValidateTriageJSON validates triage results JSON without applying them
