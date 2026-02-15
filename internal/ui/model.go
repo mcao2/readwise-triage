@@ -579,33 +579,15 @@ func (m Model) reviewingView() string {
 		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • enter: open url • q: quit")
 	}
 
-	var details string
-	if item := m.listView.GetItem(m.cursor); item != nil {
-		summary := item.Summary
-		if summary == "" {
-			summary = "No summary available"
-		}
-		summary = Truncate(summary, (m.width-10)*3)
-
-		urlText := m.styles.Help.Render("URL: " + item.URL)
-		summaryText := m.styles.Normal.Render("Summary: " + summary)
-		details = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(m.styles.Highlight.GetForeground()).
-			Padding(0, 1).
-			Width(m.width - 2).
-			Render(lipgloss.JoinVertical(lipgloss.Left, urlText, "", summaryText))
-	}
-
 	var statusText string
 	if m.statusMessage != "" {
 		statusText = m.styles.Normal.Render(m.statusMessage)
 	}
 
 	if statusText != "" {
-		return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, "", details, "", statusText, help)
+		return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, "", statusText, help)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, "", details, help)
+	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, help)
 }
 
 func (m Model) confirmingView() string {
