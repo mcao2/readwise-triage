@@ -498,6 +498,8 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			_ = m.cfg.Save()
 		}
 		return m, m.startFetching()
+	case keyMatches(msg, m.keys.Refresh):
+		return m, m.startFetching()
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
 	}
@@ -697,9 +699,9 @@ func (m *Model) reviewingView() string {
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
 		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • f: more • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • f: more • R: refresh • u: update • q: quit")
 	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • f: more • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • f: more • R: refresh • u: update • q: quit")
 	}
 
 	var statusText string

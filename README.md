@@ -34,8 +34,8 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 | `e` | Review | **Export** items to clipboard (Selected items if active, else untriaged) |
 | `i` | Review | **Import** triage results from clipboard |
 | `o` | Review | **Open** URL(s) in default browser (Selected items if active, else current) |
-| `d` | Review | Set action: **Delete** (moves to Archive) |
 | `f` | Review | **Fetch More** (adds 7 days to lookback window) |
+| `R` | Review | **Refresh** from Readwise (re-fetch with current lookback) |
 | `u` | Review | **Update** Readwise (Apply changes to Selected items if active, else all triaged) |
 | `q` / `Ctrl+C` | Global | Quit |
 | `?` | Global | Toggle help |

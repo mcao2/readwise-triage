@@ -376,3 +376,23 @@ func TestViewRendering(t *testing.T) {
 		t.Error("Done view is empty")
 	}
 }
+
+func TestRefreshKey(t *testing.T) {
+	m := NewModel()
+	items := []Item{
+		{ID: "1", Title: "Item 1"},
+		{ID: "2", Title: "Item 2"},
+	}
+	m.Update(ItemsLoadedMsg{Items: items})
+	m.state = StateReviewing
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+
+	if m.state != StateFetching {
+		t.Errorf("expected state StateFetching after Refresh key, got %v", m.state)
+	}
+
+	if cmd == nil {
+		t.Error("expected command after Refresh key")
+	}
+}

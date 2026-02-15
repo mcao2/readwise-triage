@@ -19,6 +19,7 @@ type KeyMap struct {
 	Delete     key.Binding
 	ToggleMode key.Binding
 	CycleTheme key.Binding
+	Refresh    key.Binding
 }
 
 // DefaultKeyMap returns the default keybindings
@@ -84,6 +85,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("t"),
 			key.WithHelp("t", "cycle theme"),
 		),
+		Refresh: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "refresh from readwise"),
+		),
 	}
 }
 
@@ -92,6 +97,6 @@ func (k KeyMap) Keys() []key.Binding {
 	return []key.Binding{
 		k.Up, k.Down, k.Left, k.Right,
 		k.Enter, k.Back, k.Quit, k.Help, k.Select, k.Open, k.Update, k.FetchMore,
-		k.Delete, k.ToggleMode, k.CycleTheme,
+		k.Delete, k.ToggleMode, k.CycleTheme, k.Refresh,
 	}
 }
