@@ -100,14 +100,23 @@ func TestExportItemsToJSON(t *testing.T) {
 		},
 	}
 
-	jsonData, err := m.ExportItemsToJSON()
+	exportData, err := m.ExportItemsToJSON()
 	if err != nil {
 		t.Fatalf("ExportItemsToJSON() unexpected error: %v", err)
 	}
 
+	if len(exportData) == 0 {
+		t.Fatal("exported data is empty")
+	}
+
+	jsonData := extractJSONArray(exportData)
+	if jsonData == "" {
+		t.Fatalf("failed to extract JSON from exported data. Export starts with: %.200s", exportData)
+	}
+
 	var items []map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonData), &items); err != nil {
-		t.Fatalf("Failed to parse exported JSON: %v", err)
+		t.Fatalf("Failed to parse exported JSON: %v. JSON was: %.200s", err, jsonData)
 	}
 
 	if len(items) != 2 {

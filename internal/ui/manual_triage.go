@@ -26,7 +26,7 @@ var validPriorities = map[string]bool{
 	"low":    true,
 }
 
-// ExportItemsToJSON exports the current items as JSON for manual LLM triage
+// ExportItemsToJSON exports the current items with triage prompt for manual LLM triage
 func (m *Model) ExportItemsToJSON() (string, error) {
 	type exportItem struct {
 		ID          string `json:"id"`
@@ -58,7 +58,18 @@ func (m *Model) ExportItemsToJSON() (string, error) {
 		return "", fmt.Errorf("failed to marshal items: %w", err)
 	}
 
-	return string(data), nil
+	promptPart := triage.PromptTemplate
+	idx := strings.LastIndex(promptPart, "**待处理的 inbox 条目：**")
+	if idx == -1 {
+		return string(data), nil
+	}
+
+	output := promptPart[:idx+len("**待处理的 inbox 条目：**\n\n")]
+	output += "```json\n"
+	output += string(data)
+	output += "\n```"
+
+	return output, nil
 }
 
 // ExportItemsToClipboard exports items to clipboard
