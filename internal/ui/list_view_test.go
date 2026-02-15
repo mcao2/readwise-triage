@@ -79,6 +79,9 @@ func TestGetActionText(t *testing.T) {
 	if !strings.Contains(getActionText("archive"), "Archive") {
 		t.Error("archive should contain 'Archive'")
 	}
+	if !strings.Contains(getActionText("delete"), "Delete") {
+		t.Error("delete should contain 'Delete'")
+	}
 	if !strings.Contains(getActionText(""), "New") {
 		t.Error("empty action should contain 'New'")
 	}
