@@ -439,11 +439,56 @@ func (m Model) handleEditingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleBatchEditingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case keyMatches(msg, m.keys.Back), keyMatches(msg, m.keys.Quit):
+	switch msg.String() {
+	case "r":
+		m.applyBatchAction("read_now")
+		m.state = StateReviewing
+	case "l":
+		m.applyBatchAction("later")
+		m.state = StateReviewing
+	case "a":
+		m.applyBatchAction("archive")
+		m.state = StateReviewing
+	case "d":
+		m.applyBatchAction("delete")
+		m.state = StateReviewing
+	case "1":
+		m.applyBatchPriority("high")
+		m.state = StateReviewing
+	case "2":
+		m.applyBatchPriority("medium")
+		m.state = StateReviewing
+	case "3":
+		m.applyBatchPriority("low")
+		m.state = StateReviewing
+	}
+
+	if keyMatches(msg, m.keys.Back) || keyMatches(msg, m.keys.Quit) {
 		m.state = StateReviewing
 	}
 	return m, nil
+}
+
+func (m *Model) applyBatchAction(action string) {
+	selected := m.listView.GetSelected()
+	for _, idx := range selected {
+		if idx >= 0 && idx < len(m.items) {
+			m.items[idx].Action = action
+			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority)
+		}
+	}
+	m.listView.SetItems(m.items)
+}
+
+func (m *Model) applyBatchPriority(priority string) {
+	selected := m.listView.GetSelected()
+	for _, idx := range selected {
+		if idx >= 0 && idx < len(m.items) {
+			m.items[idx].Priority = priority
+			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority)
+		}
+	}
+	m.listView.SetItems(m.items)
 }
 
 func (m Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -581,7 +626,7 @@ func (m Model) batchEditingView() string {
 	selected := m.listView.GetSelected()
 	title := m.styles.Title.Render("Batch Edit")
 	count := m.styles.Normal.Render(fmt.Sprintf("Editing %d selected items", len(selected)))
-	help := m.styles.Help.Render("Press ESC to go back")
+	help := m.styles.Help.Render("r/l/a/d: action • 1/2/3: priority • ESC: back")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", count, "", help)
 }
