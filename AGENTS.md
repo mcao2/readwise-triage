@@ -87,7 +87,9 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 - **Token Efficiency**: Only generate LLM fields that are actually consumed downstream. Unused fields (e.g., `reading_guide`, `credibility_check`) waste tokens.
 
 ### 7. Persistence
-- Triage results are stored in `~/.config/readwise-triage/triage_store.json`.
+- Triage results are stored in `~/.config/readwise-triage/triage.db` (SQLite). The store persists the full `triage.Result` report for LLM-triaged items.
+- On first run, if a legacy `triage_store.json` exists it is auto-migrated into SQLite and renamed to `.bak`.
+- Writes are immediate (no explicit `Save()` needed). Call `Close()` on shutdown.
 - Configuration is in `config.yaml` in the same directory.
 - Use `internal/config` packages to manage these files.
 

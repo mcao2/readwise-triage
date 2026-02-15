@@ -263,7 +263,7 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 
 		// Save to triage store
 		if m.triageStore != nil {
-			m.triageStore.SetItem(item.ID, item.Action, item.Priority, "llm", item.Tags)
+			m.triageStore.SetItem(item.ID, item.Action, item.Priority, "llm", item.Tags, &result)
 		}
 
 		applied++
@@ -271,11 +271,6 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 
 	if applied == 0 && len(errors) > 0 {
 		return 0, fmt.Errorf("validation failed:\n%s", strings.Join(errors, "\n"))
-	}
-
-	// Save triage store
-	if m.triageStore != nil {
-		_ = m.triageStore.Save()
 	}
 
 	if len(errors) > 0 {

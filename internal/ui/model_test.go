@@ -892,8 +892,8 @@ func TestApplySavedTriages(t *testing.T) {
 	m := NewModel()
 
 	// Pre-populate triage store
-	m.triageStore.SetItem("1", "archive", "low", "manual", nil)
-	m.triageStore.SetItem("2", "read_now", "high", "llm", nil)
+	m.triageStore.SetItem("1", "archive", "low", "manual", nil, nil)
+	m.triageStore.SetItem("2", "read_now", "high", "llm", nil, nil)
 
 	// Simulate loading items (which calls applySavedTriages)
 	m.Update(ItemsLoadedMsg{Items: []Item{
@@ -1027,7 +1027,7 @@ func TestDefaultStyles(t *testing.T) {
 
 func TestSaveLLMTriage(t *testing.T) {
 	m := NewModel()
-	m.saveLLMTriage("item1", "read_now", "high", nil)
+	m.saveLLMTriage("item1", "read_now", "high", nil, nil)
 
 	if m.triageStore == nil {
 		t.Fatal("expected triageStore")
@@ -1048,7 +1048,7 @@ func TestSaveLLMTriageNilStore(t *testing.T) {
 	m := NewModel()
 	m.triageStore = nil
 	// Should not panic
-	m.saveLLMTriage("item1", "read_now", "high", nil)
+	m.saveLLMTriage("item1", "read_now", "high", nil, nil)
 }
 
 func TestExportItemsToFile(t *testing.T) {
@@ -1464,7 +1464,7 @@ func TestExportItemsToJSON_AllTriaged(t *testing.T) {
 		{ID: "triaged-1", Title: "Item 1"},
 	}
 	// Mark item as triaged in store
-	m.triageStore.SetItem("triaged-1", "read_now", "high", "manual", nil)
+	m.triageStore.SetItem("triaged-1", "read_now", "high", "manual", nil, nil)
 
 	_, err := m.ExportItemsToJSON()
 	if err == nil {

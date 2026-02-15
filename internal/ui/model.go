@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mcao2/readwise-triage/internal/config"
 	"github.com/mcao2/readwise-triage/internal/readwise"
+	"github.com/mcao2/readwise-triage/internal/triage"
 )
 
 type State int
@@ -103,7 +104,7 @@ func NewModel() *Model {
 
 	triageStore, err := config.LoadTriageStore()
 	if err != nil {
-		triageStore = &config.TriageStore{Items: make(map[string]config.TriageEntry)}
+		triageStore = nil // will be nil-checked by callers
 	}
 
 	themeNames := GetThemeNames()
@@ -664,16 +665,14 @@ func (m *Model) saveTriage(id, action, priority string, tags []string) {
 	if m.triageStore == nil {
 		return
 	}
-	m.triageStore.SetItem(id, action, priority, "manual", tags)
-	_ = m.triageStore.Save()
+	m.triageStore.SetItem(id, action, priority, "manual", tags, nil)
 }
 
-func (m *Model) saveLLMTriage(id, action, priority string, tags []string) {
+func (m *Model) saveLLMTriage(id, action, priority string, tags []string, report *triage.Result) {
 	if m.triageStore == nil {
 		return
 	}
-	m.triageStore.SetItem(id, action, priority, "llm", tags)
-	_ = m.triageStore.Save()
+	m.triageStore.SetItem(id, action, priority, "llm", tags, report)
 }
 
 func (m *Model) configView() string {

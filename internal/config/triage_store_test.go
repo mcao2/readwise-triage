@@ -1,29 +1,27 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/mcao2/readwise-triage/internal/triage"
 	"gopkg.in/yaml.v3"
 )
 
 func TestTriageStore(t *testing.T) {
 	tmpDir := t.TempDir()
-
-	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "test_triage.json"))
+	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "config.yaml"))
 
 	store, err := LoadTriageStore()
 	if err != nil {
 		t.Fatalf("LoadTriageStore failed: %v", err)
 	}
+	defer store.Close()
 
-	if store.Version != "1.0" {
-		t.Errorf("expected version 1.0, got %s", store.Version)
-	}
-
-	store.SetItem("item1", "read_now", "high", "manual", nil)
-	store.SetItem("item2", "later", "medium", "llm", nil)
+	store.SetItem("item1", "read_now", "high", "manual", nil, nil)
+	store.SetItem("item2", "later", "medium", "llm", nil, nil)
 
 	if !store.HasTriaged("item1") {
 		t.Error("expected item1 to be triaged")
@@ -53,17 +51,16 @@ func TestTriageStore(t *testing.T) {
 		t.Errorf("expected 2 untriaged items, got %d: %v", len(untriaged), untriaged)
 	}
 
-	if err := store.Save(); err != nil {
-		t.Fatalf("Save failed: %v", err)
-	}
-
+	// Reopen and verify persistence
+	store.Close()
 	store2, err := LoadTriageStore()
 	if err != nil {
-		t.Fatalf("LoadTriageStore after save failed: %v", err)
+		t.Fatalf("LoadTriageStore after close failed: %v", err)
 	}
+	defer store2.Close()
 
 	if !store2.HasTriaged("item1") {
-		t.Error("expected item1 to be triaged after reload")
+		t.Error("expected item1 to be triaged after reopen")
 	}
 
 	entry2, _ := store2.GetItem("item2")
@@ -74,13 +71,13 @@ func TestTriageStore(t *testing.T) {
 
 func TestTriageStoreEmpty(t *testing.T) {
 	tmpDir := t.TempDir()
-
-	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "empty_test.json"))
+	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "config.yaml"))
 
 	store, err := LoadTriageStore()
 	if err != nil {
 		t.Fatalf("LoadTriageStore failed: %v", err)
 	}
+	defer store.Close()
 
 	if store.HasTriaged("anything") {
 		t.Error("expected empty store to have no items")
@@ -94,6 +91,166 @@ func TestTriageStoreEmpty(t *testing.T) {
 	untriaged := store.GetUntriagedIDs([]string{"a", "b"})
 	if len(untriaged) != 2 {
 		t.Errorf("expected all untriaged, got %d", len(untriaged))
+	}
+}
+
+func TestTriageStoreWithReport(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "config.yaml"))
+
+	store, err := LoadTriageStore()
+	if err != nil {
+		t.Fatalf("LoadTriageStore failed: %v", err)
+	}
+	defer store.Close()
+
+	report := &triage.Result{
+		ID:    "item1",
+		Title: "Test Article",
+		TriageDecision: triage.TriageDecision{
+			Action:   "read_now",
+			Priority: "high",
+			Reason:   "Very relevant to current work",
+		},
+		ContentAnalysis: triage.ContentAnalysis{
+			Type:      "tutorial",
+			KeyTopics: []string{"golang", "sqlite"},
+		},
+		MetadataEnhancement: triage.MetadataEnhancement{
+			SuggestedTags: []string{"golang", "database"},
+		},
+	}
+
+	store.SetItem("item1", "read_now", "high", "llm", []string{"golang", "database"}, report)
+
+	entry, ok := store.GetItem("item1")
+	if !ok {
+		t.Fatal("expected to get item1")
+	}
+	if entry.Report == nil {
+		t.Fatal("expected non-nil report")
+	}
+	if entry.Report.TriageDecision.Reason != "Very relevant to current work" {
+		t.Errorf("expected reason preserved, got %q", entry.Report.TriageDecision.Reason)
+	}
+	if len(entry.Report.ContentAnalysis.KeyTopics) != 2 {
+		t.Errorf("expected 2 key topics, got %d", len(entry.Report.ContentAnalysis.KeyTopics))
+	}
+	if len(entry.Tags) != 2 {
+		t.Errorf("expected 2 tags, got %d", len(entry.Tags))
+	}
+}
+
+func TestTriageStoreUpsert(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "config.yaml"))
+
+	store, err := LoadTriageStore()
+	if err != nil {
+		t.Fatalf("LoadTriageStore failed: %v", err)
+	}
+	defer store.Close()
+
+	store.SetItem("item1", "later", "low", "manual", nil, nil)
+	store.SetItem("item1", "read_now", "high", "llm", []string{"updated"}, nil)
+
+	entry, ok := store.GetItem("item1")
+	if !ok {
+		t.Fatal("expected to get item1")
+	}
+	if entry.Action != "read_now" {
+		t.Errorf("expected action read_now after upsert, got %s", entry.Action)
+	}
+	if entry.Priority != "high" {
+		t.Errorf("expected priority high after upsert, got %s", entry.Priority)
+	}
+	if entry.Source != "llm" {
+		t.Errorf("expected source llm after upsert, got %s", entry.Source)
+	}
+}
+
+func TestTriageStoreSaveNoop(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "config.yaml"))
+
+	store, err := LoadTriageStore()
+	if err != nil {
+		t.Fatalf("LoadTriageStore failed: %v", err)
+	}
+	defer store.Close()
+
+	if err := store.Save(); err != nil {
+		t.Errorf("Save() should be a no-op, got error: %v", err)
+	}
+}
+
+func TestTriageStoreMigrateFromJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, "readwise-triage")
+	os.MkdirAll(configDir, 0755)
+	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(configDir, "config.yaml"))
+
+	// Write a legacy JSON store
+	legacy := map[string]interface{}{
+		"version":    "1.0",
+		"updated_at": "2025-01-01T00:00:00Z",
+		"items": map[string]interface{}{
+			"doc1": map[string]interface{}{
+				"action":    "read_now",
+				"priority":  "high",
+				"tags":      []string{"golang"},
+				"triaged_at": "2025-01-01T00:00:00Z",
+				"source":    "llm",
+			},
+			"doc2": map[string]interface{}{
+				"action":    "archive",
+				"priority":  "low",
+				"triaged_at": "2025-01-01T00:00:00Z",
+				"source":    "manual",
+			},
+		},
+	}
+	data, _ := json.MarshalIndent(legacy, "", "  ")
+	jsonPath := filepath.Join(configDir, "triage_store.json")
+	os.WriteFile(jsonPath, data, 0600)
+
+	// Open store — should auto-migrate
+	store, err := LoadTriageStore()
+	if err != nil {
+		t.Fatalf("LoadTriageStore failed: %v", err)
+	}
+	defer store.Close()
+
+	// Verify migrated entries
+	entry1, ok := store.GetItem("doc1")
+	if !ok {
+		t.Fatal("expected doc1 to be migrated")
+	}
+	if entry1.Action != "read_now" {
+		t.Errorf("expected action read_now, got %s", entry1.Action)
+	}
+	if entry1.Priority != "high" {
+		t.Errorf("expected priority high, got %s", entry1.Priority)
+	}
+	if len(entry1.Tags) != 1 || entry1.Tags[0] != "golang" {
+		t.Errorf("expected tags [golang], got %v", entry1.Tags)
+	}
+
+	entry2, ok := store.GetItem("doc2")
+	if !ok {
+		t.Fatal("expected doc2 to be migrated")
+	}
+	if entry2.Action != "archive" {
+		t.Errorf("expected action archive, got %s", entry2.Action)
+	}
+
+	// Verify JSON file was renamed to .bak
+	if _, err := os.Stat(jsonPath); !os.IsNotExist(err) {
+		t.Error("expected triage_store.json to be renamed")
+	}
+	bakPath := jsonPath + ".bak"
+	if _, err := os.Stat(bakPath); os.IsNotExist(err) {
+		t.Error("expected triage_store.json.bak to exist")
 	}
 }
 
@@ -337,30 +494,6 @@ func TestEnsureConfigDir(t *testing.T) {
 	}
 }
 
-func TestTriageStoreSetItemNilMap(t *testing.T) {
-	store := &TriageStore{}
-	// Items is nil — SetItem should initialize it
-	store.SetItem("1", "read_now", "high", "manual", nil)
-	if store.Items == nil {
-		t.Fatal("expected Items to be initialized")
-	}
-	entry, ok := store.GetItem("1")
-	if !ok {
-		t.Fatal("expected item to exist")
-	}
-	if entry.Action != "read_now" {
-		t.Errorf("expected action 'read_now', got %q", entry.Action)
-	}
-}
-
-func TestTriageStoreGetItemNilMap(t *testing.T) {
-	store := &TriageStore{}
-	_, ok := store.GetItem("anything")
-	if ok {
-		t.Error("expected false from nil map")
-	}
-}
-
 func TestLoadConfigInvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
@@ -374,58 +507,5 @@ func TestLoadConfigInvalidYAML(t *testing.T) {
 	_, err := Load()
 	if err == nil {
 		t.Error("expected error on invalid YAML")
-	}
-}
-
-func TestLoadTriageStoreCorruptedJSON(t *testing.T) {
-	tmpDir := t.TempDir()
-	configDir := filepath.Join(tmpDir, "readwise-triage")
-	os.MkdirAll(configDir, 0755)
-	storePath := filepath.Join(configDir, "triage_store.json")
-	os.WriteFile(storePath, []byte("{not valid json}"), 0600)
-
-	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(configDir, "config.yaml"))
-
-	_, err := LoadTriageStore()
-	if err == nil {
-		t.Error("expected error on corrupted JSON")
-	}
-}
-
-func TestTriageStoreSaveUpdatesTimestamp(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "config.yaml"))
-
-	store := &TriageStore{
-		Version: "1.0",
-		Items:   make(map[string]TriageEntry),
-	}
-	store.SetItem("1", "read_now", "high", "manual", nil)
-
-	if err := store.Save(); err != nil {
-		t.Fatalf("Save failed: %v", err)
-	}
-
-	if store.UpdatedAt.IsZero() {
-		t.Error("expected UpdatedAt to be set after save")
-	}
-}
-
-func TestLoadTriageStoreNilItems(t *testing.T) {
-	tmpDir := t.TempDir()
-	configDir := filepath.Join(tmpDir, "readwise-triage")
-	os.MkdirAll(configDir, 0755)
-	storePath := filepath.Join(configDir, "triage_store.json")
-	// Valid JSON but with null items
-	os.WriteFile(storePath, []byte(`{"version":"1.0","items":null}`), 0600)
-
-	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(configDir, "config.yaml"))
-
-	store, err := LoadTriageStore()
-	if err != nil {
-		t.Fatalf("LoadTriageStore failed: %v", err)
-	}
-	if store.Items == nil {
-		t.Error("expected Items to be initialized even when null in JSON")
 	}
 }
