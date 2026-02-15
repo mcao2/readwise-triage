@@ -27,7 +27,11 @@ type ListView struct {
 }
 
 func listColumns(width int) []table.Column {
-	titleWidth := width - 50
+	// Each cell has Padding(0,1) adding 2 chars per column (6 columns = 12 extra).
+	// Account for this so total row width doesn't exceed terminal width.
+	fixedWidth := 2 + 10 + 8 + 10 + 14 // non-title columns
+	padding := 6 * 2                     // 6 columns × 2 chars padding each
+	titleWidth := width - fixedWidth - padding
 	if titleWidth < 20 {
 		titleWidth = 20
 	}
@@ -128,7 +132,7 @@ func (lv *ListView) updateRows() {
 		priorityText := runewidth.FillRight(getPriorityText(item.Priority), 8)
 		category := Truncate(item.Category, 10)
 		info := formatInfo(item.ReadingTime, item.WordCount)
-		title := Truncate(item.Title, lv.width-55)
+		title := Truncate(item.Title, lv.width-56-12)
 
 		rows[i] = table.Row{sel, actionText, priorityText, category, info, title}
 	}
