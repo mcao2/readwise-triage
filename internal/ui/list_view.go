@@ -48,9 +48,14 @@ func NewListView(width, height int) ListView {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 
+	tableHeight := height - 13
+	if tableHeight < 5 {
+		tableHeight = 5
+	}
+
 	t := table.New(
 		table.WithColumns(columns),
-		table.WithHeight(height-4),
+		table.WithHeight(tableHeight),
 		table.WithFocused(true),
 	)
 	t.SetStyles(s)
@@ -160,16 +165,19 @@ func (lv *ListView) DetailView(width int, styles Styles) string {
 		return ""
 	}
 
+	maxWidth := width - 4
+	if maxWidth < 20 {
+		maxWidth = 20
+	}
+
 	var lines []string
 
 	// Title line
-	titleLine := styles.Highlight.Render(Truncate(item.Title, width-4))
-	lines = append(lines, titleLine)
+	lines = append(lines, styles.Highlight.Render(Truncate(item.Title, maxWidth)))
 
 	// URL
 	if item.URL != "" {
-		urlLine := styles.Help.Render(Truncate(item.URL, width-4))
-		lines = append(lines, urlLine)
+		lines = append(lines, styles.Help.Render(Truncate(item.URL, maxWidth)))
 	}
 
 	// Metadata line: source, category, reading time, word count
@@ -190,18 +198,12 @@ func (lv *ListView) DetailView(width int, styles Styles) string {
 		meta = append(meta, "tags:"+strings.Join(item.Tags, ","))
 	}
 	if len(meta) > 0 {
-		metaLine := styles.Normal.Render(strings.Join(meta, "  ·  "))
-		lines = append(lines, metaLine)
+		lines = append(lines, styles.Normal.Render(Truncate(strings.Join(meta, " · "), maxWidth)))
 	}
 
-	// Summary (truncated to 2 lines)
+	// Summary (single line, truncated)
 	if item.Summary != "" {
-		summary := item.Summary
-		maxLen := (width - 4) * 2
-		if len(summary) > maxLen {
-			summary = summary[:maxLen] + "…"
-		}
-		lines = append(lines, styles.Normal.Render(summary))
+		lines = append(lines, styles.HelpDesc.Render(Truncate(item.Summary, maxWidth)))
 	}
 
 	return strings.Join(lines, "\n")
@@ -224,6 +226,17 @@ func (lv *ListView) MoveCursor(delta int) {
 		lv.cursor = newPos
 		lv.table.SetCursor(newPos)
 	}
+}
+
+// UpdateTable forwards a message to the underlying table component
+func (lv *ListView) UpdateTable(msg tea.Msg) {
+	lv.table, _ = lv.table.Update(msg)
+}
+
+// SyncCursor reads the table's internal cursor and syncs our cursor to it
+func (lv *ListView) SyncCursor() int {
+	lv.cursor = lv.table.Cursor()
+	return lv.cursor
 }
 
 func (lv *ListView) ToggleSelection() {
@@ -261,7 +274,12 @@ func (lv ListView) View() string {
 func (lv *ListView) SetWidthHeight(width, height int) {
 	lv.width = width
 	lv.height = height
-	lv.table.SetHeight(height - 4)
+	// Reserve space for: header(2) + detail pane(6) + status(1) + footer(4)
+	tableHeight := height - 13
+	if tableHeight < 5 {
+		tableHeight = 5
+	}
+	lv.table.SetHeight(tableHeight)
 	lv.table.SetColumns(listColumns(width))
 }
 

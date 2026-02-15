@@ -477,13 +477,10 @@ func (m *Model) waitForUpdateProgress(ch chan readwise.BatchUpdateProgress, succ
 
 func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case keyMatches(msg, m.keys.Up):
-		m.listView.MoveCursor(-1)
-		m.cursor = m.listView.Cursor()
-		return m, nil
-	case keyMatches(msg, m.keys.Down):
-		m.listView.MoveCursor(1)
-		m.cursor = m.listView.Cursor()
+	case keyMatches(msg, m.keys.Up), keyMatches(msg, m.keys.Down):
+		// Forward navigation keys to the table so it handles scrolling/viewport
+		m.listView.UpdateTable(msg)
+		m.cursor = m.listView.SyncCursor()
 		return m, nil
 	case keyMatches(msg, m.keys.Open):
 		selected := m.listView.GetSelected()
@@ -799,12 +796,13 @@ func (m *Model) reviewingView() string {
 		list = m.listView.View()
 	}
 
-	// Detail pane
+	// Detail pane (simple padded text, no border)
 	detail := ""
 	if len(m.items) > 0 {
 		detailContent := m.listView.DetailView(m.width, m.styles)
 		if detailContent != "" {
-			detail = m.styles.Detail.Width(m.width).Render(detailContent)
+			divider := m.styles.HelpSep.Render(strings.Repeat("─", m.width))
+			detail = divider + "\n" + detailContent
 		}
 	}
 
