@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -100,6 +101,116 @@ func TestActionTextAlignment(t *testing.T) {
 		width := runewidth.StringWidth(text)
 		if width != 12 {
 			t.Errorf("action '%s' text '%s' has width %d, expected 12", action, text, width)
+		}
+	}
+}
+
+func TestListView_SetWidthHeight(t *testing.T) {
+	lv := NewListView(80, 24)
+	lv.SetItems([]Item{{ID: "1", Title: "Test"}})
+
+	lv.SetWidthHeight(120, 40)
+	if lv.width != 120 {
+		t.Errorf("expected width 120, got %d", lv.width)
+	}
+	if lv.height != 40 {
+		t.Errorf("expected height 40, got %d", lv.height)
+	}
+}
+
+func TestListView_Init(t *testing.T) {
+	lv := NewListView(80, 24)
+	cmd := lv.Init()
+	if cmd != nil {
+		t.Error("expected nil cmd from Init")
+	}
+}
+
+func TestListView_Update(t *testing.T) {
+	lv := NewListView(80, 24)
+	lv.SetItems([]Item{{ID: "1", Title: "Test"}, {ID: "2", Title: "Test 2"}})
+
+	updated, cmd := lv.Update(tea.KeyMsg{Type: tea.KeyDown})
+	_ = updated
+	_ = cmd
+	// Just verify it doesn't panic
+}
+
+func TestListView_HelpView(t *testing.T) {
+	lv := NewListView(80, 24)
+	help := lv.helpView()
+	if help == "" {
+		t.Error("expected non-empty help view")
+	}
+	if !strings.Contains(help, "navigate") {
+		t.Error("expected help to contain 'navigate'")
+	}
+}
+
+func TestListView_View(t *testing.T) {
+	lv := NewListView(80, 24)
+	lv.SetItems([]Item{{ID: "1", Title: "Test", Action: "read_now", Priority: "high"}})
+	view := lv.View()
+	if view == "" {
+		t.Error("expected non-empty view")
+	}
+}
+
+func TestListView_GetItemOutOfBounds(t *testing.T) {
+	lv := NewListView(80, 24)
+	lv.SetItems([]Item{{ID: "1", Title: "Test"}})
+
+	if item := lv.GetItem(-1); item != nil {
+		t.Error("expected nil for negative index")
+	}
+	if item := lv.GetItem(5); item != nil {
+		t.Error("expected nil for out-of-bounds index")
+	}
+}
+
+func TestListView_CursorBoundary(t *testing.T) {
+	lv := NewListView(80, 24)
+	lv.SetItems([]Item{{ID: "1"}, {ID: "2"}})
+
+	// SetCursor out of bounds should be ignored
+	lv.SetCursor(10)
+	if lv.Cursor() != 0 {
+		t.Errorf("expected cursor 0 after out-of-bounds set, got %d", lv.Cursor())
+	}
+
+	lv.SetCursor(-1)
+	if lv.Cursor() != 0 {
+		t.Errorf("expected cursor 0 after negative set, got %d", lv.Cursor())
+	}
+
+	// MoveCursor out of bounds should be ignored
+	lv.MoveCursor(-1)
+	if lv.Cursor() != 0 {
+		t.Errorf("expected cursor 0 after negative move, got %d", lv.Cursor())
+	}
+
+	lv.MoveCursor(5)
+	if lv.Cursor() != 0 {
+		t.Errorf("expected cursor 0 after large move, got %d", lv.Cursor())
+	}
+}
+
+func TestGetPriorityText(t *testing.T) {
+	tests := []struct {
+		priority string
+		contains string
+	}{
+		{"high", "High"},
+		{"medium", "Medium"},
+		{"low", "Low"},
+		{"", "None"},
+		{"unknown", "None"},
+	}
+
+	for _, tt := range tests {
+		text := getPriorityText(tt.priority)
+		if !strings.Contains(text, tt.contains) {
+			t.Errorf("getPriorityText(%q) = %q, expected to contain %q", tt.priority, text, tt.contains)
 		}
 	}
 }
