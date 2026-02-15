@@ -81,17 +81,18 @@ type Model struct {
 }
 
 type Item struct {
-	ID          string
-	Title       string
-	Action      string
-	Priority    string
-	URL         string
-	Summary     string
-	Category    string
-	Source      string
-	WordCount   int
-	ReadingTime string
-	Tags        []string
+	ID           string
+	Title        string
+	Action       string
+	Priority     string
+	URL          string
+	Summary      string
+	Category     string
+	Source       string
+	WordCount    int
+	ReadingTime  string
+	Tags         []string // LLM-suggested tags
+	OriginalTags []string // tags fetched from Readwise (preserved on update)
 }
 
 func NewModel() *Model {
@@ -343,16 +344,17 @@ func (m *Model) startFetching() tea.Cmd {
 		uiItems := make([]Item, len(items))
 		for i, item := range items {
 			uiItems[i] = Item{
-				ID:          item.ID,
-				Title:       item.Title,
-				Action:      "",
-				Priority:    "",
-				URL:         item.URL,
-				Summary:     item.Summary,
-				Category:    item.Category,
-				Source:      item.Source,
-				WordCount:   item.WordCount,
-				ReadingTime: item.ReadingTime,
+				ID:           item.ID,
+				Title:        item.Title,
+				Action:       "",
+				Priority:     "",
+				URL:          item.URL,
+				Summary:      item.Summary,
+				Category:     item.Category,
+				Source:       item.Source,
+				WordCount:    item.WordCount,
+				ReadingTime:  item.ReadingTime,
+				OriginalTags: []string(item.Tags),
 			}
 		}
 
@@ -399,14 +401,17 @@ func (m *Model) startUpdating() tea.Cmd {
 
 			switch item.Action {
 			case "read_now":
-				update.Tags = []string{"read_now"}
+				// no location change needed
 			case "later":
 				update.Location = "later"
 			case "archive", "delete":
 				update.Location = "archive"
 			case "needs_review":
-				update.Tags = []string{"needs_review"}
+				// no location change needed
 			}
+
+			// Start with original Readwise tags to preserve them
+			update.Tags = append(update.Tags, item.OriginalTags...)
 
 			if item.Priority != "" {
 				update.Tags = append(update.Tags, "priority:"+item.Priority)

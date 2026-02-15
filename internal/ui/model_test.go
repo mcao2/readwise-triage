@@ -450,17 +450,19 @@ func TestUpdateRequestWithTags(t *testing.T) {
 	// Directly set items with tags
 	m.items = []Item{
 		{
-			ID:       "1",
-			Title:    "Item 1",
-			Action:   "read_now",
-			Priority: "high",
-			Tags:     []string{"golang", "tutorial"},
+			ID:           "1",
+			Title:        "Item 1",
+			Action:       "read_now",
+			Priority:     "high",
+			Tags:         []string{"golang", "tutorial"},
+			OriginalTags: []string{"inbox", "rss"},
 		},
 		{
-			ID:     "2",
-			Title:  "Item 2",
-			Action: "needs_review",
-			Tags:   []string{"paywalled"},
+			ID:           "2",
+			Title:        "Item 2",
+			Action:       "needs_review",
+			Tags:         []string{"paywalled"},
+			OriginalTags: []string{"saved"},
 		},
 	}
 	m.state = StateReviewing
@@ -476,10 +478,13 @@ func TestUpdateRequestWithTags(t *testing.T) {
 
 			switch item.Action {
 			case "read_now":
-				update.Tags = []string{"read_now"}
+				// no action-based tag
 			case "needs_review":
-				update.Tags = []string{"needs_review"}
+				// no action-based tag
 			}
+
+			// Preserve original tags
+			update.Tags = append(update.Tags, item.OriginalTags...)
 
 			if item.Priority != "" {
 				update.Tags = append(update.Tags, "priority:"+item.Priority)
@@ -497,8 +502,8 @@ func TestUpdateRequestWithTags(t *testing.T) {
 		t.Fatalf("expected 2 updates, got %d", len(updates))
 	}
 
-	// Check first item: read_now + priority:high + golang + tutorial
-	expectedTags1 := []string{"read_now", "priority:high", "golang", "tutorial"}
+	// Check first item: original tags + priority:high + golang + tutorial
+	expectedTags1 := []string{"inbox", "rss", "priority:high", "golang", "tutorial"}
 	if len(updates[0].Tags) != len(expectedTags1) {
 		t.Errorf("expected %d tags for item 1, got %d", len(expectedTags1), len(updates[0].Tags))
 	}
@@ -508,8 +513,8 @@ func TestUpdateRequestWithTags(t *testing.T) {
 		}
 	}
 
-	// Check second item: needs_review + paywalled
-	expectedTags2 := []string{"needs_review", "paywalled"}
+	// Check second item: original tags + paywalled
+	expectedTags2 := []string{"saved", "paywalled"}
 	if len(updates[1].Tags) != len(expectedTags2) {
 		t.Errorf("expected %d tags for item 2, got %d", len(expectedTags2), len(updates[1].Tags))
 	}
