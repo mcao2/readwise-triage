@@ -58,14 +58,24 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 - **Table-Driven Tests**: Use table-driven tests for parsing logic (like JSON extraction) and string manipulations.
 - **Key Binding Verification**: When testing keyboard input, use `tea.KeyMsg` and verify the resulting `Model` state or `tea.Cmd`.
 - **Coverage**: Aim for high coverage in `internal/ui` to catch state transition regressions.
+- **HTTP Mock Pattern**: `mockHTTPClient` in `readwise_test.go` captures requests (including body copies) and returns canned responses. Use it to verify request payloads, retry behavior, and call counts.
 
 ### 5. Readwise API Integration
 - API logic resides in `internal/readwise/`.
 - Use the `Client` struct for all communications.
 - Follow the Readwise Reader V3 API specifications (see `READWISE_API.md`).
-- **Rate Limiting**: Respect the 50 req/min limit on UPDATE/CREATE. Use `time.Ticker` for batch operations.
+- **Rate Limiting**: Respect the 50 req/min limit on UPDATE/CREATE. Use `time.Ticker` at 1.5s intervals for batch operations.
+- **429 Handling**: `doRequest` retries on 429 responses. It parses the `Retry-After` header when present, falling back to exponential backoff. Always handle 429 alongside 5xx in retry logic.
+- **PATCH Body**: Don't include fields already present in the URL path (e.g., `document_id` is in `/update/<id>/`, so omit it from the JSON body).
+- **Delete = Archive (intentional)**: The `delete` triage action archives items via PATCH rather than calling the DELETE endpoint. This is by design — it keeps the action reversible.
 
-### 5. Persistence
+### 6. LLM Triage Pipeline
+- The LLM classifies items into actions: `delete`, `archive`, `later`, `read_now`, and `needs_review`.
+- **`needs_review`**: Escape hatch for items the LLM can't confidently classify (paywalled, ambiguous, insufficient context). Don't force every item into a definitive action.
+- **Suggested Tags**: Tags flow from LLM generation → triage import → Readwise update. They are appended alongside action-based tags during `UpdateDocument`.
+- **Token Efficiency**: Only generate LLM fields that are actually consumed downstream. Unused fields (e.g., `reading_guide`, `credibility_check`) waste tokens.
+
+### 7. Persistence
 - Triage results are stored in `~/.config/readwise-triage/triage_store.json`.
 - Configuration is in `config.yaml` in the same directory.
 - Use `internal/config` packages to manage these files.
