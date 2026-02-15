@@ -80,6 +80,8 @@ type Model struct {
 	// Config
 	cfg         *config.Config
 	triageStore *config.TriageStore
+
+	fetchLookback int
 }
 
 // Item represents a displayable item in the list
@@ -136,6 +138,7 @@ func NewModel() Model {
 		themeIndex:    themeIndex,
 		cfg:           cfg,
 		triageStore:   triageStore,
+		fetchLookback: cfg.DefaultDaysAgo,
 	}
 	m.listView = NewListView(80, 24)
 	return m
@@ -181,6 +184,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.items = msg.Items
 		m.applySavedTriages()
 		m.listView.SetItems(m.items)
+		m.statusMessage = fmt.Sprintf("Loaded %d items from the last %d days", len(m.items), m.fetchLookback)
 		m.state = StateReviewing
 
 	case UpdateFinishedMsg:
@@ -307,7 +311,7 @@ func (m Model) startFetching() tea.Cmd {
 
 			// Fetch inbox items
 			opts := readwise.FetchOptions{
-				DaysAgo:  m.cfg.DefaultDaysAgo,
+				DaysAgo:  m.fetchLookback,
 				Location: "new",
 			}
 			items, err := client.GetInboxItems(opts)
@@ -444,6 +448,9 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.Update):
 		m.state = StateConfirming
 		return m, nil
+	case keyMatches(msg, m.keys.FetchMore):
+		m.fetchLookback += 7
+		return m, m.startFetching()
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
 	}
@@ -632,9 +639,9 @@ func (m Model) reviewingView() string {
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
 		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • f: more • u: update • q: quit")
 	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • f: more • u: update • q: quit")
 	}
 
 	var statusText string
