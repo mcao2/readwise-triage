@@ -4,9 +4,9 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 
 ## Features
 
-- **Manual LLM Workflow**:
+- **LLM-Assisted Workflow**:
   - Export untriaged items as JSON with a specialized prompt (`e`).
-  - Paste to LLM (e.g., Perplexity/GPT) for categorization.
+  - Paste to any LLM of your choice for categorization.
   - Import results back into the TUI (`i`).
 - **Persistence**: Triage decisions are saved locally across sessions.
 - **Interactive List View**:
@@ -22,7 +22,6 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 | Key | Context | Action |
 |-----|---------|--------|
 | `Enter` | Config | Start fetching items |
-| `m` | Config | Toggle between LLM/Manual mode |
 | `t` | Config | Cycle through color themes |
 | `j` / `k` | Review | Navigate down / up |
 | `x` / `Space` | Review | Toggle selection (Batch mode) |
@@ -40,6 +39,11 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 | `u` | Review | **Update** Readwise (Apply changes to Selected items if active, else all triaged) |
 | `q` / `Ctrl+C` | Global | Quit |
 | `?` | Global | Toggle help |
+
+## Requirements
+
+- Go 1.24+
+- A [Readwise Reader](https://readwise.io/) account and API token ([get one here](https://readwise.io/access_token))
 
 ## Installation
 
@@ -87,7 +91,7 @@ Triage decisions are saved to `~/.config/readwise-triage/triage_store.json`. Thi
 
 1. **Fetch**: Load inbox items from Readwise.
 2. **Export (`e`)**: Copy untriaged items and the triage prompt to your clipboard.
-3. **LLM**: Paste into Perplexity or ChatGPT, then copy the resulting JSON array.
+3. **LLM**: Paste into any LLM (ChatGPT, Claude, Gemini, etc.), then copy the resulting JSON array.
 4. **Import (`i`)**: Paste the results back into the tool.
 5. **Review**: Manually adjust any items or use batch selection (`x`).
 6. **Update (`u`)**: Apply all triaged changes to your Readwise Reader account.

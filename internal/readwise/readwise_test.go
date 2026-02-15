@@ -251,7 +251,7 @@ func TestGetInboxItemsWithPagination(t *testing.T) {
 	}
 }
 
-func TestExtractForPerplexity(t *testing.T) {
+func TestExtractForLLM(t *testing.T) {
 	now := FlexibleTime{Time: time.Now()}
 	items := []Item{
 		{
@@ -266,7 +266,7 @@ func TestExtractForPerplexity(t *testing.T) {
 		},
 	}
 
-	simplified := ExtractForPerplexity(items)
+	simplified := ExtractForLLM(items)
 
 	if len(simplified) != 1 {
 		t.Errorf("expected 1 simplified item, got %d", len(simplified))

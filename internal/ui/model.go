@@ -311,12 +311,6 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Enter):
 		return m, m.startFetching()
-	case keyMatches(msg, m.keys.ToggleMode):
-		m.useLLMTriage = !m.useLLMTriage
-		if m.cfg != nil {
-			m.cfg.UseLLMTriage = m.useLLMTriage
-			_ = m.cfg.Save()
-		}
 	case keyMatches(msg, m.keys.CycleTheme):
 		m.cycleTheme()
 	}
@@ -512,7 +506,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusMessage = fmt.Sprintf("Export failed: %v", err)
 			m.messageType = "error"
 		} else {
-			m.statusMessage = "Items exported to clipboard! Paste to Perplexity."
+			m.statusMessage = "Items exported to clipboard! Paste to your LLM."
 			m.messageType = "success"
 		}
 		m.state = StateMessage
@@ -683,17 +677,6 @@ func (m *Model) configView() string {
 		Foreground(lipgloss.Color(m.styles.theme.Primary)).
 		Render("  Readwise Triage")
 
-	// Mode indicator
-	var modeIcon, modeLabel string
-	if m.useLLMTriage {
-		modeIcon = "🤖"
-		modeLabel = "LLM Auto-Triage (Perplexity)"
-	} else {
-		modeIcon = "✋"
-		modeLabel = "Manual Triage"
-	}
-	modeLine := fmt.Sprintf("  %s  %s", modeIcon, m.styles.Normal.Render(modeLabel))
-
 	// Theme indicator
 	themeName := m.cfg.Theme
 	if themeName == "" {
@@ -708,7 +691,6 @@ func (m *Model) configView() string {
 		"",
 		title,
 		"",
-		modeLine,
 		themeLine,
 		daysLine,
 		"",
@@ -723,7 +705,6 @@ func (m *Model) configView() string {
 	// Help
 	help := m.renderHelpLine([]helpEntry{
 		{"enter", "start"},
-		{"m", "mode"},
 		{"t", "theme"},
 		{"q", "quit"},
 	})
@@ -750,11 +731,7 @@ func (m *Model) fetchingView() string {
 		),
 	)
 
-	entries := []helpEntry{{"q", "cancel"}}
-	if m.useLLMTriage {
-		entries = append([]helpEntry{{"s", "skip LLM"}}, entries...)
-	}
-	help := m.renderHelpLine(entries)
+	help := m.renderHelpLine([]helpEntry{{"q", "cancel"}})
 
 	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
 }

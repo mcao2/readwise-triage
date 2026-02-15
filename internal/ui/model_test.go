@@ -666,18 +666,13 @@ func TestFetchMoreKey(t *testing.T) {
 	}
 }
 
-func TestToggleLLMMode(t *testing.T) {
+func TestToggleLLMMode_Disabled(t *testing.T) {
 	m := NewModel()
 	initial := m.useLLMTriage
 
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
-	if m.useLLMTriage == initial {
-		t.Error("expected useLLMTriage to toggle")
-	}
-
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
 	if m.useLLMTriage != initial {
-		t.Error("expected useLLMTriage to toggle back")
+		t.Error("expected useLLMTriage to remain unchanged when toggle is hidden")
 	}
 }
 
@@ -1123,8 +1118,8 @@ func TestFetchingViewWithLLM(t *testing.T) {
 	m.state = StateFetching
 	m.useLLMTriage = true
 	view := m.View()
-	if !strings.Contains(view, "skip") {
-		t.Error("expected LLM fetching view to mention skip")
+	if strings.Contains(view, "skip") {
+		t.Error("expected fetching view to not mention skip (mode toggle hidden)")
 	}
 }
 
@@ -1289,24 +1284,23 @@ func TestConfigEnterKey(t *testing.T) {
 	}
 }
 
-func TestConfigToggleMode(t *testing.T) {
+func TestConfigToggleMode_Disabled(t *testing.T) {
 	m := NewModel()
 	m.state = StateConfig
 	initial := m.useLLMTriage
 
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
-	if m.useLLMTriage == initial {
-		t.Error("expected useLLMTriage to toggle in config state")
+	if m.useLLMTriage != initial {
+		t.Error("expected useLLMTriage to remain unchanged when toggle is hidden")
 	}
 }
 
-func TestConfigViewLLMMode(t *testing.T) {
+func TestConfigViewNoLLMMode(t *testing.T) {
 	m := NewModel()
 	m.state = StateConfig
-	m.useLLMTriage = true
 	view := m.View()
-	if !strings.Contains(view, "LLM") {
-		t.Error("expected config view to show LLM mode")
+	if strings.Contains(view, "LLM") {
+		t.Error("expected config view to not show LLM mode (hidden)")
 	}
 }
 
@@ -1550,8 +1544,8 @@ func TestConfigViewCard(t *testing.T) {
 	if !strings.Contains(view, "Readwise Triage") {
 		t.Error("expected config view to contain app title")
 	}
-	if !strings.Contains(view, "mode") || !strings.Contains(view, "theme") {
-		t.Error("expected config view help to contain mode and theme")
+	if !strings.Contains(view, "theme") {
+		t.Error("expected config view help to contain theme")
 	}
 }
 
