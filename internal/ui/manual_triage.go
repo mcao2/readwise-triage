@@ -26,7 +26,7 @@ var validPriorities = map[string]bool{
 	"low":    true,
 }
 
-// ExportItemsToJSON exports the current items with triage prompt for manual LLM triage
+// ExportItemsToJSON exports only untriaged items with triage prompt for manual LLM triage
 func (m *Model) ExportItemsToJSON() (string, error) {
 	type exportItem struct {
 		ID          string `json:"id"`
@@ -39,9 +39,12 @@ func (m *Model) ExportItemsToJSON() (string, error) {
 		ReadingTime string `json:"reading_time"`
 	}
 
-	items := make([]exportItem, len(m.items))
-	for i, item := range m.items {
-		items[i] = exportItem{
+	var items []exportItem
+	for _, item := range m.items {
+		if m.triageStore != nil && m.triageStore.HasTriaged(item.ID) {
+			continue
+		}
+		items = append(items, exportItem{
 			ID:          item.ID,
 			Title:       item.Title,
 			URL:         item.URL,
@@ -50,7 +53,11 @@ func (m *Model) ExportItemsToJSON() (string, error) {
 			Source:      item.Source,
 			WordCount:   item.WordCount,
 			ReadingTime: item.ReadingTime,
-		}
+		})
+	}
+
+	if len(items) == 0 {
+		return "", fmt.Errorf("all items have already been triaged")
 	}
 
 	data, err := json.MarshalIndent(items, "", "  ")
@@ -215,6 +222,11 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 		item.Action = result.TriageDecision.Action
 		item.Priority = result.TriageDecision.Priority
 
+		// Save to triage store
+		if m.triageStore != nil {
+			m.triageStore.SetItem(item.ID, item.Action, item.Priority, "llm")
+		}
+
 		applied++
 	}
 
@@ -222,14 +234,17 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 		return 0, fmt.Errorf("validation failed:\n%s", strings.Join(errors, "\n"))
 	}
 
+	// Save triage store
+	if m.triageStore != nil {
+		_ = m.triageStore.Save()
+	}
+
 	if len(errors) > 0 {
-		// Partial success - return what we could apply plus warnings
 		m.statusMessage = fmt.Sprintf("Applied %d/%d results. Warnings:\n%s", applied, len(results), strings.Join(errors, "\n"))
 	} else {
 		m.statusMessage = fmt.Sprintf("Successfully applied triage results to %d items", applied)
 	}
 
-	// Refresh the list view
 	m.listView.SetItems(m.items)
 
 	return applied, nil

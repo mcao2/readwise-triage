@@ -81,7 +81,8 @@ type Model struct {
 	messageType   string // "error" or "success"
 
 	// Config
-	cfg *config.Config
+	cfg         *config.Config
+	triageStore *config.TriageStore
 }
 
 // Item represents a displayable item in the list
@@ -100,13 +101,16 @@ type Item struct {
 
 // NewModel creates a new UI model
 func NewModel() Model {
-	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		cfg = &config.Config{DefaultDaysAgo: 7}
 	}
 
-	// Determine theme
+	triageStore, err := config.LoadTriageStore()
+	if err != nil {
+		triageStore = &config.TriageStore{Items: make(map[string]config.TriageEntry)}
+	}
+
 	themeIndex := 0
 	themeName := cfg.Theme
 	if themeName == "" {
@@ -119,10 +123,8 @@ func NewModel() Model {
 		}
 	}
 
-	// Determine mode (default to true if not set)
 	useLLM := cfg.UseLLMTriage
 	if !useLLM && cfg.Theme == "" {
-		// First run, default to true
 		useLLM = true
 	}
 
@@ -136,6 +138,7 @@ func NewModel() Model {
 		selected:      make(map[int]bool),
 		themeIndex:    themeIndex,
 		cfg:           cfg,
+		triageStore:   triageStore,
 	}
 	m.listView = NewListView(80, 24)
 	return m
@@ -179,7 +182,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ItemsLoadedMsg:
 		m.items = msg.Items
-		m.listView.SetItems(msg.Items)
+		m.applySavedTriages()
+		m.listView.SetItems(m.items)
 		m.state = StateReviewing
 
 	case ErrorMsg:
@@ -393,24 +397,31 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "r":
 			item.Action = "read_now"
+			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "l":
 			item.Action = "later"
+			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "a":
 			item.Action = "archive"
+			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "d":
 			item.Action = "delete"
+			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "1":
 			item.Priority = "high"
+			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "2":
 			item.Priority = "medium"
+			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "3":
 			item.Priority = "low"
+			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		}
 	}
@@ -448,6 +459,34 @@ func (m Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleMessageKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.state = StateReviewing
 	return m, nil
+}
+
+func (m *Model) applySavedTriages() {
+	if m.triageStore == nil {
+		return
+	}
+	for i := range m.items {
+		if entry, ok := m.triageStore.GetItem(m.items[i].ID); ok {
+			m.items[i].Action = entry.Action
+			m.items[i].Priority = entry.Priority
+		}
+	}
+}
+
+func (m *Model) saveTriage(id, action, priority string) {
+	if m.triageStore == nil {
+		return
+	}
+	m.triageStore.SetItem(id, action, priority, "manual")
+	_ = m.triageStore.Save()
+}
+
+func (m *Model) saveLLMTriage(id, action, priority string) {
+	if m.triageStore == nil {
+		return
+	}
+	m.triageStore.SetItem(id, action, priority, "llm")
+	_ = m.triageStore.Save()
 }
 
 // View helpers
