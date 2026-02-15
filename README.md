@@ -1,6 +1,6 @@
-# Readwise TUI
+# Readwise Triage
 
-A beautiful terminal UI application for managing Readwise Reader inbox items with AI-powered triage.
+A CLI tool for triaging Readwise Reader inbox items with AI-powered or manual categorization.
 
 ## Features
 
@@ -33,14 +33,14 @@ A beautiful terminal UI application for managing Readwise Reader inbox items wit
 
 ```bash
 # Clone the repository
-git clone https://github.com/mcao2/readwise-tui.git
-cd readwise-tui
+git clone https://github.com/mcao2/readwise-triage.git
+cd readwise-triage
 
 # Build the binary
-go build -o readwise-tui ./cmd/readwise-tui
+go build -o readwise-triage ./cmd/readwise-triage
 
 # Install to $GOPATH/bin
-go install ./cmd/readwise-tui
+go install ./cmd/readwise-triage
 ```
 
 ## Configuration
@@ -58,7 +58,7 @@ Get your Readwise token at: https://readwise.io/access_token
 
 ```bash
 # Run the application
-./readwise-tui
+./readwise-triage
 ```
 
 ### Keyboard Shortcuts
@@ -99,7 +99,7 @@ Get your Readwise token at: https://readwise.io/access_token
 
 ```
 .
-├── cmd/readwise-tui/       # Entry point
+├── cmd/readwise-triage/    # Entry point
 ├── internal/
 │   ├── readwise/          # Readwise API client
 │   ├── triage/            # LLM integration

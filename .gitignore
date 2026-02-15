@@ -19,7 +19,7 @@ go.work
 go.work.sum
 
 # Binary
-readwise-tui
+readwise-triage
 
 # IDE
 .idea/
@@ -57,5 +57,5 @@ prompts.md
 .sisyphus/
 
 # Build artifacts
-readwise-tui
+readwise-triage
 dist/
