@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -181,7 +182,24 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 
 	var results []triage.Result
 	if err := json.Unmarshal([]byte(jsonStr), &results); err != nil {
-		return 0, fmt.Errorf("failed to parse JSON: %w", err)
+		// Try sanitizing common LLM JSON mistakes and retry
+		sanitized := sanitizeLLMJSON(jsonStr)
+		if err2 := json.Unmarshal([]byte(sanitized), &results); err2 != nil {
+			// Show context around the error position if available
+			if synErr, ok := err.(*json.SyntaxError); ok {
+				pos := int(synErr.Offset)
+				start := pos - 40
+				if start < 0 {
+					start = 0
+				}
+				end := pos + 40
+				if end > len(jsonStr) {
+					end = len(jsonStr)
+				}
+				return 0, fmt.Errorf("failed to parse JSON at offset %d: %w\nContext: ...%s...", pos, err, jsonStr[start:end])
+			}
+			return 0, fmt.Errorf("failed to parse JSON: %w", err)
+		}
 	}
 
 	if len(results) == 0 {
@@ -386,7 +404,10 @@ func (m *Model) ValidateTriageJSON(jsonData string) (bool, string) {
 
 	var results []triage.Result
 	if err := json.Unmarshal([]byte(jsonStr), &results); err != nil {
-		return false, fmt.Sprintf("JSON parse error: %v", err)
+		sanitized := sanitizeLLMJSON(jsonStr)
+		if err2 := json.Unmarshal([]byte(sanitized), &results); err2 != nil {
+			return false, fmt.Sprintf("JSON parse error: %v", err)
+		}
 	}
 
 	if len(results) == 0 {
@@ -427,4 +448,70 @@ func (m *Model) ValidateTriageJSON(jsonData string) (bool, string) {
 	}
 
 	return true, fmt.Sprintf("valid: %d results for %d items", len(results), len(results))
+}
+
+// sanitizeLLMJSON fixes common JSON mistakes produced by LLMs:
+// - Smart/curly quotes → straight quotes
+// - Trailing commas before } or ]
+// - Unescaped newlines/tabs inside string values
+// - Double-escaped quotes (\\" → \") inside strings
+func sanitizeLLMJSON(s string) string {
+	// Replace smart quotes with straight quotes
+	s = strings.ReplaceAll(s, "\u201c", "\"") // "
+	s = strings.ReplaceAll(s, "\u201d", "\"") // "
+	s = strings.ReplaceAll(s, "\u2018", "'")  // '
+	s = strings.ReplaceAll(s, "\u2019", "'")  // '
+
+	// Remove trailing commas before } or ]
+	trailingComma := regexp.MustCompile(`,\s*([}\]])`)
+	s = trailingComma.ReplaceAllString(s, "$1")
+
+	// Fix unescaped newlines inside JSON string values and
+	// double-escaped quotes (\\" which prematurely closes strings).
+	// Walk through the string tracking whether we're inside a quoted string.
+	var buf strings.Builder
+	buf.Grow(len(s))
+	inString := false
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if !inString {
+			if ch == '"' {
+				inString = true
+			}
+			buf.WriteByte(ch)
+			continue
+		}
+
+		// Inside a string
+		if ch == '\\' && i+1 < len(s) {
+			next := s[i+1]
+			if next == '\\' && i+2 < len(s) && s[i+2] == '"' {
+				// \\" → \" (double-escaped quote → single-escaped quote)
+				buf.WriteString("\\\"")
+				i += 2
+				continue
+			}
+			// Normal escape sequence — pass through
+			buf.WriteByte(ch)
+			buf.WriteByte(next)
+			i++
+			continue
+		}
+		if ch == '"' {
+			inString = false
+			buf.WriteByte(ch)
+			continue
+		}
+		if ch == '\n' {
+			buf.WriteString("\\n")
+		} else if ch == '\t' {
+			buf.WriteString("\\t")
+		} else if ch == '\r' {
+			// skip bare \r
+		} else {
+			buf.WriteByte(ch)
+		}
+	}
+
+	return buf.String()
 }

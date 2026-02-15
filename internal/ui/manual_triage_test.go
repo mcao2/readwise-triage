@@ -303,6 +303,122 @@ func TestImportTriageResults_WithSuggestedTags(t *testing.T) {
 	}
 }
 
+func TestSanitizeLLMJSON(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		valid bool
+	}{
+		{
+			name:  "trailing comma before closing brace",
+			input: `[{"id": "1", "title": "Test",}]`,
+			valid: true,
+		},
+		{
+			name:  "trailing comma before closing bracket",
+			input: `[{"id": "1", "title": "Test"},]`,
+			valid: true,
+		},
+		{
+			name:  "smart double quotes",
+			input: "[\u201c{\"id\": \"1\"}\u201d]",
+			valid: false, // smart quotes around braces won't produce valid JSON
+		},
+		{
+			name:  "smart quotes as value delimiters",
+			input: "[{\"id\": \u201c1\u201d}]",
+			valid: true,
+		},
+		{
+			name:  "non-ASCII in string values",
+			input: `[{"id": "1", "title": "Så här gör du"}]`,
+			valid: true,
+		},
+		{
+			name:  "multiple trailing commas",
+			input: `[{"id": "1", "nested": {"a": "b",}, "title": "Test",}]`,
+			valid: true,
+		},
+		{
+			name:  "unescaped newline in string value",
+			input: "[{\"id\": \"1\", \"reason\": \"This is line one\nå andra sidan line two\"}]",
+			valid: true,
+		},
+		{
+			name:  "unescaped tab in string value",
+			input: "[{\"id\": \"1\", \"title\": \"Test\ttabs\"}]",
+			valid: true,
+		},
+		{
+			name:  "double-escaped quotes in string value",
+			input: `[{"id": "1", "title": "止损的艺术：有一种痛叫\\"卖飞\\"，有一种死叫\\"归零\\""}]`,
+			valid: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeLLMJSON(tt.input)
+			var js json.RawMessage
+			err := json.Unmarshal([]byte(result), &js)
+			if tt.valid && err != nil {
+				t.Errorf("sanitizeLLMJSON() produced invalid JSON: %v\nInput:  %s\nOutput: %s", err, tt.input, result)
+			}
+		})
+	}
+}
+
+func TestImportTriageResults_SanitizedJSON(t *testing.T) {
+	m := &Model{
+		items: []Item{
+			{ID: "1", Title: "Swedish Article"},
+		},
+	}
+	m.listView = NewListView(80, 20)
+	m.listView.SetItems(m.items)
+
+	// JSON with trailing comma — common LLM mistake
+	jsonData := `[
+		{
+			"id": "1",
+			"title": "Swedish Article",
+			"triage_decision": {
+				"action": "read_now",
+				"priority": "high",
+			},
+		}
+	]`
+
+	applied, err := m.ImportTriageResults(jsonData)
+	if err != nil {
+		t.Fatalf("ImportTriageResults failed on sanitizable JSON: %v", err)
+	}
+	if applied != 1 {
+		t.Errorf("expected 1 item applied, got %d", applied)
+	}
+}
+
+func TestImportTriageResults_UnescapedNewline(t *testing.T) {
+	m := &Model{
+		items: []Item{
+			{ID: "1", Title: "Nordic Article"},
+		},
+	}
+	m.listView = NewListView(80, 20)
+	m.listView.SetItems(m.items)
+
+	// JSON with unescaped newline inside a string value — reproduces the å error
+	jsonData := "[{\"id\": \"1\", \"title\": \"Nordic Article\", \"triage_decision\": {\"action\": \"read_now\", \"priority\": \"high\", \"reason\": \"Useful article about\nå andra sidan productivity\"}}]"
+
+	applied, err := m.ImportTriageResults(jsonData)
+	if err != nil {
+		t.Fatalf("ImportTriageResults failed on JSON with unescaped newline: %v", err)
+	}
+	if applied != 1 {
+		t.Errorf("expected 1 item applied, got %d", applied)
+	}
+}
+
 func TestImportTriageResults_InvalidAction(t *testing.T) {
 	m := &Model{
 		items: []Item{
