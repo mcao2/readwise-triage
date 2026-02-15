@@ -12,7 +12,6 @@ import (
 	"github.com/mcao2/readwise-triage/internal/readwise"
 )
 
-// State represents the current application state
 type State int
 
 const (
@@ -49,7 +48,6 @@ func (s State) String() string {
 	}
 }
 
-// Model is the main Bubble Tea model
 type Model struct {
 	state  State
 	width  int
@@ -60,31 +58,22 @@ type Model struct {
 	useLLMTriage bool
 	themeIndex   int
 
-	// Data
-	items         []Item
-	selectedIndex int
-	cursor        int
-	selected      map[int]bool
+	items  []Item
+	cursor int
 
 	listView ListView
 
-	// Editing
-	editingItem *Item
-
-	// Progress
 	progress      float64
 	statusMessage string
-	messageType   string // "error" or "success"
-	batchMode     bool   // true when items are selected for batch editing
+	messageType   string
+	batchMode     bool
 
-	// Config
 	cfg         *config.Config
 	triageStore *config.TriageStore
 
 	fetchLookback int
 }
 
-// Item represents a displayable item in the list
 type Item struct {
 	ID          string
 	Title       string
@@ -98,8 +87,7 @@ type Item struct {
 	ReadingTime string
 }
 
-// NewModel creates a new UI model
-func NewModel() Model {
+func NewModel() *Model {
 	cfg, err := config.Load()
 	if err != nil {
 		cfg = &config.Config{DefaultDaysAgo: 7}
@@ -127,15 +115,14 @@ func NewModel() Model {
 		useLLM = true
 	}
 
-	m := Model{
+	m := &Model{
 		state:         StateConfig,
 		useLLMTriage:  useLLM,
 		styles:        NewStyles(Themes[themeName]),
 		keys:          DefaultKeyMap(),
-		selectedIndex: 0,
-		cursor:        0,
-		selected:      make(map[int]bool),
 		themeIndex:    themeIndex,
+		items:         []Item{},
+		cursor:        0,
 		cfg:           cfg,
 		triageStore:   triageStore,
 		fetchLookback: cfg.DefaultDaysAgo,
@@ -150,20 +137,17 @@ func (m *Model) cycleTheme() {
 	newTheme := themeNames[m.themeIndex]
 	m.styles = NewStyles(Themes[newTheme])
 
-	// Save to config
 	if m.cfg != nil {
 		m.cfg.Theme = newTheme
 		_ = m.cfg.Save()
 	}
 }
 
-// Init initializes the model
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
-// Update handles messages and updates the model
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -199,8 +183,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the current view
-func (m Model) View() string {
+func (m *Model) View() string {
 	switch m.state {
 	case StateConfig:
 		return m.configView()
@@ -223,18 +206,14 @@ func (m Model) View() string {
 	}
 }
 
-// handleKeyPress handles keyboard input
-func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Global keys
+func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Quit):
 		return m, tea.Quit
 	case keyMatches(msg, m.keys.Help):
-		// Toggle help view
 		return m, nil
 	}
 
-	// State-specific keys
 	switch m.state {
 	case StateConfig:
 		return m.handleConfigKeys(msg)
@@ -242,6 +221,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReviewingKeys(msg)
 	case StateConfirming:
 		return m.handleConfirmingKeys(msg)
+	case StateDone:
+		return m.handleDoneKeys(msg)
 	case StateMessage:
 		return m.handleMessageKeys(msg)
 	}
@@ -249,23 +230,19 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// StateChangeMsg triggers a state change
 type StateChangeMsg struct {
 	State State
 }
 
-// ProgressMsg updates progress
 type ProgressMsg struct {
 	Progress float64
 	Message  string
 }
 
-// ItemsLoadedMsg signals items have been loaded
 type ItemsLoadedMsg struct {
 	Items []Item
 }
 
-// ErrorMsg signals an error occurred
 type ErrorMsg struct {
 	Error error
 }
@@ -275,7 +252,6 @@ type UpdateFinishedMsg struct {
 	Failed  int
 }
 
-// State handlers
 func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Enter):
@@ -292,24 +268,21 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) startFetching() tea.Cmd {
+func (m *Model) startFetching() tea.Cmd {
 	return tea.Sequence(
 		func() tea.Msg {
 			return StateChangeMsg{State: StateFetching}
 		},
 		func() tea.Msg {
-			// Check if token is configured
 			if m.cfg == nil || m.cfg.ReadwiseToken == "" {
 				return ErrorMsg{Error: fmt.Errorf("READWISE_TOKEN not configured. Set it via environment variable or config file")}
 			}
 
-			// Create readwise client
 			client, err := readwise.NewClient(m.cfg.ReadwiseToken)
 			if err != nil {
 				return ErrorMsg{Error: err}
 			}
 
-			// Fetch inbox items
 			opts := readwise.FetchOptions{
 				DaysAgo:  m.fetchLookback,
 				Location: "new",
@@ -319,7 +292,6 @@ func (m Model) startFetching() tea.Cmd {
 				return ErrorMsg{Error: err}
 			}
 
-			// Convert to UI items
 			uiItems := make([]Item, len(items))
 			for i, item := range items {
 				uiItems[i] = Item{
@@ -341,7 +313,7 @@ func (m Model) startFetching() tea.Cmd {
 	)
 }
 
-func (m Model) startTriaging() tea.Cmd {
+func (m *Model) startTriaging() tea.Cmd {
 	return tea.Sequence(
 		func() tea.Msg {
 			return StateChangeMsg{State: StateTriaging}
@@ -352,7 +324,7 @@ func (m Model) startTriaging() tea.Cmd {
 	)
 }
 
-func (m Model) startUpdating() tea.Cmd {
+func (m *Model) startUpdating() tea.Cmd {
 	return tea.Sequence(
 		func() tea.Msg {
 			return StateChangeMsg{State: StateUpdating}
@@ -416,7 +388,11 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case keyMatches(msg, m.keys.Open):
 		if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
-			_ = openURL(item.URL)
+			if err := openURL(item.URL); err != nil {
+				m.statusMessage = fmt.Sprintf("Failed to open URL: %v", err)
+				m.messageType = "error"
+				m.state = StateMessage
+			}
 		}
 		return m, nil
 	case msg.String() == "x" || msg.String() == " " || msg.String() == "space":
@@ -440,7 +416,9 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusMessage = fmt.Sprintf("Import failed: %v", err)
 			m.messageType = "error"
 		} else {
-			m.statusMessage = fmt.Sprintf("Applied triage results to %d items", applied)
+			if m.statusMessage == "" {
+				m.statusMessage = fmt.Sprintf("Applied triage results to %d items", applied)
+			}
 			m.messageType = "success"
 		}
 		m.state = StateMessage
@@ -455,7 +433,6 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	// Batch actions when items are selected
 	if m.batchMode {
 		switch msg.String() {
 		case "r":
@@ -538,8 +515,15 @@ func (m *Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) handleDoneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.state = StateConfig
+	m.statusMessage = ""
+	return m, nil
+}
+
 func (m *Model) handleMessageKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.state = StateReviewing
+	m.statusMessage = ""
 	return m, nil
 }
 
@@ -571,8 +555,7 @@ func (m *Model) saveLLMTriage(id, action, priority string) {
 	_ = m.triageStore.Save()
 }
 
-// View helpers
-func (m Model) configView() string {
+func (m *Model) configView() string {
 	title := m.styles.Title.Render("Readwise Triage")
 
 	var modeText string
@@ -601,7 +584,7 @@ func (m Model) configView() string {
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", modeText, "", themeText, "", help)
 }
 
-func (m Model) fetchingView() string {
+func (m *Model) fetchingView() string {
 	title := m.styles.Title.Render("Fetching Inbox Items")
 	status := m.styles.Normal.Render("Loading from Readwise...")
 
@@ -616,14 +599,14 @@ func (m Model) fetchingView() string {
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", status, "", help)
 }
 
-func (m Model) triagingView() string {
+func (m *Model) triagingView() string {
 	title := m.styles.Title.Render("Triaging Items")
 	status := m.styles.Normal.Render("Processing with LLM...")
 	help := m.styles.Help.Render("Press q to cancel")
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", status, "", help)
 }
 
-func (m Model) reviewingView() string {
+func (m *Model) reviewingView() string {
 	title := m.styles.Title.Render("Review Items")
 
 	var list string
@@ -655,28 +638,28 @@ func (m Model) reviewingView() string {
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, help)
 }
 
-func (m Model) confirmingView() string {
+func (m *Model) confirmingView() string {
 	title := m.styles.Title.Render("Confirm Update")
 	message := m.styles.Normal.Render("Are you sure you want to update Readwise?")
 	help := m.styles.Help.Render("y: yes • n: no")
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", message, "", help)
 }
 
-func (m Model) updatingView() string {
+func (m *Model) updatingView() string {
 	title := m.styles.Title.Render("Updating Readwise")
 	progress := m.styles.Normal.Render(fmt.Sprintf("Progress: %.0f%%", m.progress*100))
 	status := m.styles.Normal.Render(m.statusMessage)
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", progress, status)
 }
 
-func (m Model) doneView() string {
+func (m *Model) doneView() string {
 	title := m.styles.Title.Render("Complete")
-	message := m.styles.Highlight.Render("All updates applied successfully!")
-	help := m.styles.Help.Render("Press q to quit")
+	message := m.styles.Highlight.Render(m.statusMessage)
+	help := m.styles.Help.Render("Press any key to return to main menu")
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", message, "", help)
 }
 
-func (m Model) messageView() string {
+func (m *Model) messageView() string {
 	var title string
 	var message string
 
