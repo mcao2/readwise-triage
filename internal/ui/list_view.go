@@ -38,7 +38,7 @@ func listColumns(width int) []table.Column {
 	return []table.Column{
 		{Title: " ", Width: 2},
 		{Title: "Action", Width: 10},
-		{Title: "Pri", Width: 8},
+		{Title: "Priority", Width: 8},
 		{Title: "Category", Width: 10},
 		{Title: "Info", Width: 14},
 		{Title: "Title", Width: titleWidth},
