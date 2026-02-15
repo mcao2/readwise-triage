@@ -265,8 +265,8 @@ func TestHandleAdditionalKeys(t *testing.T) {
 
 	m.state = StateDone
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	if m.state != StateConfig {
-		t.Errorf("expected Config state after key in Done, got %v", m.state)
+	if m.state != StateReviewing {
+		t.Errorf("expected Reviewing state after key in Done, got %v", m.state)
 	}
 
 	m.state = StateMessage

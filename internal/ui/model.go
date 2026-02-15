@@ -631,7 +631,7 @@ func (m *Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleDoneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	m.state = StateConfig
+	m.state = StateReviewing
 	m.statusMessage = ""
 	return m, nil
 }
@@ -872,7 +872,7 @@ func (m *Model) doneView() string {
 		),
 	)
 
-	help := m.renderHelpLine([]helpEntry{{"any key", "continue"}})
+	help := m.renderHelpLine([]helpEntry{{"any key", "back to review"}})
 	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
 }
 
