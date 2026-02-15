@@ -39,10 +39,25 @@ func (m *Model) ExportItemsToJSON() (string, error) {
 	}
 
 	var items []exportItem
-	for _, item := range m.items {
-		if m.triageStore != nil && m.triageStore.HasTriaged(item.ID) {
+	selectedIndices := m.listView.GetSelected()
+	useSelection := len(selectedIndices) > 0
+
+	for i, item := range m.items {
+		if useSelection {
+			isSelected := false
+			for _, idx := range selectedIndices {
+				if idx == i {
+					isSelected = true
+					break
+				}
+			}
+			if !isSelected {
+				continue
+			}
+		} else if m.triageStore != nil && m.triageStore.HasTriaged(item.ID) {
 			continue
 		}
+
 		items = append(items, exportItem{
 			ID:          item.ID,
 			Title:       item.Title,

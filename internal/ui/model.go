@@ -256,13 +256,13 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Enter):
 		return m, m.startFetching()
-	case msg.String() == "m":
+	case keyMatches(msg, m.keys.ToggleMode):
 		m.useLLMTriage = !m.useLLMTriage
 		if m.cfg != nil {
 			m.cfg.UseLLMTriage = m.useLLMTriage
 			_ = m.cfg.Save()
 		}
-	case msg.String() == "t":
+	case keyMatches(msg, m.keys.CycleTheme):
 		m.cycleTheme()
 	}
 	return m, nil
@@ -339,8 +339,24 @@ func (m *Model) startUpdating() tea.Cmd {
 				return ErrorMsg{Error: err}
 			}
 
+			selectedIndices := m.listView.GetSelected()
+			useSelection := len(selectedIndices) > 0
+
 			var updates []readwise.UpdateRequest
-			for _, item := range m.items {
+			for i, item := range m.items {
+				if useSelection {
+					isSelected := false
+					for _, idx := range selectedIndices {
+						if idx == i {
+							isSelected = true
+							break
+						}
+					}
+					if !isSelected {
+						continue
+					}
+				}
+
 				if item.Action != "" {
 					update := readwise.UpdateRequest{
 						DocumentID: item.ID,
@@ -387,7 +403,14 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor = m.listView.Cursor()
 		return m, nil
 	case keyMatches(msg, m.keys.Open):
-		if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
+		selected := m.listView.GetSelected()
+		if len(selected) > 0 {
+			for _, idx := range selected {
+				if item := m.listView.GetItem(idx); item != nil {
+					_ = openURL(item.URL)
+				}
+			}
+		} else if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 			if err := openURL(item.URL); err != nil {
 				m.statusMessage = fmt.Sprintf("Failed to open URL: %v", err)
 				m.messageType = "error"
@@ -395,7 +418,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case msg.String() == "x" || msg.String() == " " || msg.String() == "space":
+	case keyMatches(msg, m.keys.Select):
 		m.listView.ToggleSelection()
 		m.cursor = m.listView.Cursor()
 		m.batchMode = len(m.listView.GetSelected()) > 0
