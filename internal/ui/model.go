@@ -485,6 +485,8 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.applyBatchAction("later")
 		case "a":
 			m.applyBatchAction("archive")
+		case "d":
+			m.applyBatchAction("delete")
 		case "1":
 			m.applyBatchPriority("high")
 		case "2":
@@ -507,6 +509,10 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.listView.SetItems(m.items)
 		case "a":
 			item.Action = "archive"
+			m.saveTriage(item.ID, item.Action, item.Priority)
+			m.listView.SetItems(m.items)
+		case "d":
+			item.Action = "delete"
 			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "1":
