@@ -94,56 +94,6 @@ type Item struct {
 	LastOpenedAt    *FlexibleTime `json:"last_opened_at,omitempty"`
 }
 
-// SimplifiedItem contains only the fields needed for LLM processing
-type SimplifiedItem struct {
-	ID              string        `json:"id"`
-	URL             string        `json:"url"`
-	ReaderURL       string        `json:"reader_url"`
-	Title           string        `json:"title"`
-	Author          string        `json:"author"`
-	Source          string        `json:"source"`
-	SiteName        string        `json:"site_name"`
-	Category        string        `json:"category"`
-	WordCount       int           `json:"word_count"`
-	ReadingTime     string        `json:"reading_time"`
-	PublishedDate   *FlexibleTime `json:"published_date,omitempty"`
-	SavedAt         FlexibleTime  `json:"saved_at"`
-	CreatedAt       FlexibleTime  `json:"created_at"`
-	UpdatedAt       FlexibleTime  `json:"updated_at"`
-	Tags            FlexibleTags  `json:"tags"`
-	Summary         string        `json:"summary"`
-	Notes           string        `json:"notes"`
-	ReadingProgress float64       `json:"reading_progress"`
-	FirstOpenedAt   *FlexibleTime `json:"first_opened_at,omitempty"`
-	LastOpenedAt    *FlexibleTime `json:"last_opened_at,omitempty"`
-}
-
-// ToSimplified converts a full Item to SimplifiedItem for LLM processing
-func (i Item) ToSimplified() SimplifiedItem {
-	return SimplifiedItem{
-		ID:              i.ID,
-		URL:             i.URL,
-		ReaderURL:       i.ReaderURL,
-		Title:           i.Title,
-		Author:          i.Author,
-		Source:          i.Source,
-		SiteName:        i.SiteName,
-		Category:        i.Category,
-		WordCount:       i.WordCount,
-		ReadingTime:     i.ReadingTime,
-		PublishedDate:   i.PublishedDate,
-		SavedAt:         i.SavedAt,
-		CreatedAt:       i.CreatedAt,
-		UpdatedAt:       i.UpdatedAt,
-		Tags:            i.Tags,
-		Summary:         i.Summary,
-		Notes:           i.Notes,
-		ReadingProgress: i.ReadingProgress,
-		FirstOpenedAt:   i.FirstOpenedAt,
-		LastOpenedAt:    i.LastOpenedAt,
-	}
-}
-
 // ListResponse represents the API response structure
 type ListResponse struct {
 	Count          int     `json:"count"`

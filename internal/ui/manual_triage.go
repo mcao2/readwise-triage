@@ -271,11 +271,6 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 	return applied, nil
 }
 
-func isJSONArray(s string) bool {
-	s = strings.TrimSpace(s)
-	return strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")
-}
-
 func extractJSONArray(content string) string {
 	content = strings.TrimSpace(content)
 
@@ -325,7 +320,7 @@ func extractJSONArraysFromCodeBlocks(content string) []string {
 		end += codeStart
 
 		codeContent := strings.TrimSpace(content[codeStart:end])
-		if isJSONArray(codeContent) {
+		if triage.IsJSONArray(codeContent) {
 			results = append(results, codeContent)
 		}
 
@@ -370,7 +365,7 @@ func extractAllJSONArrays(content string) []string {
 
 		if endIdx != -1 {
 			arr := strings.TrimSpace(content[idx : endIdx+1])
-			if isJSONArray(arr) {
+			if triage.IsJSONArray(arr) {
 				results = append(results, arr)
 			}
 			startIdx = endIdx + 1

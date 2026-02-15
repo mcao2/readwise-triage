@@ -18,8 +18,8 @@ type ListView struct {
 	height   int
 }
 
-func NewListView(width, height int) ListView {
-	columns := []table.Column{
+func listColumns(width int) []table.Column {
+	return []table.Column{
 		{Title: " ", Width: 3},
 		{Title: "Action", Width: 12},
 		{Title: "Priority", Width: 12},
@@ -27,6 +27,10 @@ func NewListView(width, height int) ListView {
 		{Title: "Info", Width: 18},
 		{Title: "Title", Width: width - 65},
 	}
+}
+
+func NewListView(width, height int) ListView {
+	columns := listColumns(width)
 
 	s := table.DefaultStyles()
 	s.Header = s.Header.
@@ -170,16 +174,7 @@ func (lv *ListView) SetWidthHeight(width, height int) {
 	lv.width = width
 	lv.height = height
 	lv.table.SetHeight(height - 4)
-
-	columns := []table.Column{
-		{Title: " ", Width: 3},
-		{Title: "Action", Width: 12},
-		{Title: "Priority", Width: 12},
-		{Title: "Category", Width: 12},
-		{Title: "Info", Width: 18},
-		{Title: "Title", Width: width - 65},
-	}
-	lv.table.SetColumns(columns)
+	lv.table.SetColumns(listColumns(width))
 }
 
 func (lv ListView) Init() tea.Cmd {

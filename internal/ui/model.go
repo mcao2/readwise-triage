@@ -537,37 +537,21 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 		switch msg.String() {
 		case "r":
-			item.Action = "read_now"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
+			m.setItemAction(item, "read_now")
 		case "l":
-			item.Action = "later"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
+			m.setItemAction(item, "later")
 		case "a":
-			item.Action = "archive"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
+			m.setItemAction(item, "archive")
 		case "d":
-			item.Action = "delete"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
+			m.setItemAction(item, "delete")
 		case "n":
-			item.Action = "needs_review"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
+			m.setItemAction(item, "needs_review")
 		case "1":
-			item.Priority = "high"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
+			m.setItemPriority(item, "high")
 		case "2":
-			item.Priority = "medium"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
+			m.setItemPriority(item, "medium")
 		case "3":
-			item.Priority = "low"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
+			m.setItemPriority(item, "low")
 		}
 	}
 
@@ -593,6 +577,18 @@ func (m *Model) applyBatchPriority(priority string) {
 			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority)
 		}
 	}
+	m.listView.SetItems(m.items)
+}
+
+func (m *Model) setItemAction(item *Item, action string) {
+	item.Action = action
+	m.saveTriage(item.ID, item.Action, item.Priority)
+	m.listView.SetItems(m.items)
+}
+
+func (m *Model) setItemPriority(item *Item, priority string) {
+	item.Priority = priority
+	m.saveTriage(item.ID, item.Action, item.Priority)
 	m.listView.SetItems(m.items)
 }
 

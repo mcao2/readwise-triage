@@ -171,9 +171,9 @@ func TestIsJSONArray(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isJSONArray(tt.s)
+			got := IsJSONArray(tt.s)
 			if got != tt.want {
-				t.Errorf("isJSONArray(%q) = %v, want %v", tt.s, got, tt.want)
+				t.Errorf("IsJSONArray(%q) = %v, want %v", tt.s, got, tt.want)
 			}
 		})
 	}

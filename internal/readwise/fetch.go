@@ -86,11 +86,7 @@ func (c *Client) fetchPage(updatedAfter, location string, cursor *string) ([]Ite
 	return result.Results, result.NextPageCursor, nil
 }
 
-// ExtractForPerplexity converts full items to simplified format for LLM processing
-func ExtractForPerplexity(items []Item) []SimplifiedItem {
-	simplified := make([]SimplifiedItem, 0, len(items))
-	for _, item := range items {
-		simplified = append(simplified, item.ToSimplified())
-	}
-	return simplified
+// ExtractForPerplexity returns items for LLM processing
+func ExtractForPerplexity(items []Item) []Item {
+	return items
 }

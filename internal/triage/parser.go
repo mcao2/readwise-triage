@@ -43,7 +43,7 @@ func extractJSON(content string) string {
 	matches := codeBlockRegex.FindStringSubmatch(content)
 	if len(matches) > 1 {
 		trimmed := strings.TrimSpace(matches[1])
-		if isJSONArray(trimmed) {
+		if IsJSONArray(trimmed) {
 			return trimmed
 		}
 	}
@@ -80,8 +80,8 @@ func extractJSON(content string) string {
 	return strings.TrimSpace(content[startIdx : endIdx+1])
 }
 
-// isJSONArray checks if the string starts with [ and ends with ]
-func isJSONArray(s string) bool {
+// IsJSONArray checks if the string starts with [ and ends with ]
+func IsJSONArray(s string) bool {
 	s = strings.TrimSpace(s)
 	return strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")
 }
