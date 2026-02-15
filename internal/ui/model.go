@@ -349,18 +349,22 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.Up):
 		m.listView.MoveCursor(-1)
 		m.cursor = m.listView.Cursor()
+		return m, nil
 	case keyMatches(msg, m.keys.Down):
 		m.listView.MoveCursor(1)
 		m.cursor = m.listView.Cursor()
+		return m, nil
 	case keyMatches(msg, m.keys.Enter):
 		if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 			m.editingItem = item
 			m.state = StateEditing
 		}
+		return m, nil
 	case msg.String() == "x" || msg.String() == "space":
 		m.listView.ToggleSelection()
 		m.cursor = m.listView.Cursor()
 		m.batchMode = len(m.listView.GetSelected()) > 0
+		return m, nil
 	case msg.String() == "e":
 		if err := m.ExportItemsToClipboard(); err != nil {
 			m.statusMessage = fmt.Sprintf("Export failed: %v", err)
@@ -370,6 +374,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.messageType = "success"
 		}
 		m.state = StateMessage
+		return m, nil
 	case msg.String() == "i":
 		applied, err := m.ImportTriageResultsFromClipboard()
 		if err != nil {
@@ -380,6 +385,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.messageType = "success"
 		}
 		m.state = StateMessage
+		return m, nil
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
 	}
@@ -401,19 +407,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.applyBatchPriority("medium")
 		case "3":
 			m.applyBatchPriority("low")
-		case "x", "space":
-			m.listView.ToggleSelection()
-			m.cursor = m.listView.Cursor()
-			m.batchMode = len(m.listView.GetSelected()) > 0
 		}
-		return m, nil
-	}
-
-	// Handle x/space for selection (in case keyMatches doesn't catch it)
-	if msg.String() == "x" || msg.String() == "space" {
-		m.listView.ToggleSelection()
-		m.cursor = m.listView.Cursor()
-		m.batchMode = len(m.listView.GetSelected()) > 0
 		return m, nil
 	}
 
