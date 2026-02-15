@@ -19,7 +19,6 @@ const (
 	StateTriaging
 	StateReviewing
 	StateEditing
-	StateBatchEditing
 	StateConfirming
 	StateUpdating
 	StateDone
@@ -38,8 +37,6 @@ func (s State) String() string {
 		return "Reviewing"
 	case StateEditing:
 		return "Editing"
-	case StateBatchEditing:
-		return "Batch Editing"
 	case StateConfirming:
 		return "Confirming"
 	case StateUpdating:
@@ -79,6 +76,7 @@ type Model struct {
 	progress      float64
 	statusMessage string
 	messageType   string // "error" or "success"
+	batchMode     bool   // true when items are selected for batch editing
 
 	// Config
 	cfg         *config.Config
@@ -207,8 +205,6 @@ func (m Model) View() string {
 		return m.reviewingView()
 	case StateEditing:
 		return m.editingView()
-	case StateBatchEditing:
-		return m.batchEditingView()
 	case StateConfirming:
 		return m.confirmingView()
 	case StateUpdating:
@@ -241,8 +237,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReviewingKeys(msg)
 	case StateEditing:
 		return m.handleEditingKeys(msg)
-	case StateBatchEditing:
-		return m.handleBatchEditingKeys(msg)
 	case StateConfirming:
 		return m.handleConfirmingKeys(msg)
 	case StateMessage:
@@ -350,7 +344,7 @@ func (m Model) startTriaging() tea.Cmd {
 	)
 }
 
-func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Up):
 		m.listView.MoveCursor(-1)
@@ -366,10 +360,7 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.Select):
 		m.listView.ToggleSelection()
 		m.cursor = m.listView.Cursor()
-	case msg.String() == "b":
-		if len(m.listView.GetSelected()) > 0 {
-			m.state = StateBatchEditing
-		}
+		m.batchMode = len(m.listView.GetSelected()) > 0
 	case msg.String() == "e":
 		if err := m.ExportItemsToClipboard(); err != nil {
 			m.statusMessage = fmt.Sprintf("Export failed: %v", err)
@@ -391,6 +382,31 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state = StateMessage
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
+	}
+
+	// Batch actions when items are selected
+	if m.batchMode {
+		switch msg.String() {
+		case "r":
+			m.applyBatchAction("read_now")
+		case "l":
+			m.applyBatchAction("later")
+		case "a":
+			m.applyBatchAction("archive")
+		case "d":
+			m.applyBatchAction("delete")
+		case "1":
+			m.applyBatchPriority("high")
+		case "2":
+			m.applyBatchPriority("medium")
+		case "3":
+			m.applyBatchPriority("low")
+		case "x", " ":
+			m.listView.ToggleSelection()
+			m.cursor = m.listView.Cursor()
+			m.batchMode = len(m.listView.GetSelected()) > 0
+		}
+		return m, nil
 	}
 
 	if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
@@ -429,41 +445,10 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleEditingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleEditingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Back), keyMatches(msg, m.keys.Quit):
 		m.editingItem = nil
-		m.state = StateReviewing
-	}
-	return m, nil
-}
-
-func (m Model) handleBatchEditingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "r":
-		m.applyBatchAction("read_now")
-		m.state = StateReviewing
-	case "l":
-		m.applyBatchAction("later")
-		m.state = StateReviewing
-	case "a":
-		m.applyBatchAction("archive")
-		m.state = StateReviewing
-	case "d":
-		m.applyBatchAction("delete")
-		m.state = StateReviewing
-	case "1":
-		m.applyBatchPriority("high")
-		m.state = StateReviewing
-	case "2":
-		m.applyBatchPriority("medium")
-		m.state = StateReviewing
-	case "3":
-		m.applyBatchPriority("low")
-		m.state = StateReviewing
-	}
-
-	if keyMatches(msg, m.keys.Back) || keyMatches(msg, m.keys.Quit) {
 		m.state = StateReviewing
 	}
 	return m, nil
@@ -491,7 +476,7 @@ func (m *Model) applyBatchPriority(priority string) {
 	m.listView.SetItems(m.items)
 }
 
-func (m Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Enter):
 		m.state = StateUpdating
@@ -501,7 +486,7 @@ func (m Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleMessageKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleMessageKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.state = StateReviewing
 	return m, nil
 }
@@ -597,7 +582,15 @@ func (m Model) reviewingView() string {
 	}
 
 	count := m.styles.Help.Render(fmt.Sprintf("Item %d of %d", m.cursor+1, len(m.items)))
-	help := m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • enter: edit • b: batch • q: quit")
+
+	var help string
+	if m.batchMode {
+		selectedCount := len(m.listView.GetSelected())
+		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • enter: edit • q: quit")
+	} else {
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • enter: edit • q: quit")
+	}
 
 	var statusText string
 	if m.statusMessage != "" {
@@ -620,15 +613,6 @@ func (m Model) editingView() string {
 	help := m.styles.Help.Render("Press ESC to go back")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", itemTitle, "", help)
-}
-
-func (m Model) batchEditingView() string {
-	selected := m.listView.GetSelected()
-	title := m.styles.Title.Render("Batch Edit")
-	count := m.styles.Normal.Render(fmt.Sprintf("Editing %d selected items", len(selected)))
-	help := m.styles.Help.Render("r/l/a/d: action • 1/2/3: priority • ESC: back")
-
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", count, "", help)
 }
 
 func (m Model) confirmingView() string {
