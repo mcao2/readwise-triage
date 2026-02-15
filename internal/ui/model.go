@@ -409,6 +409,14 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Handle x/space for selection (in case keyMatches doesn't catch it)
+	if msg.String() == "x" || msg.String() == " " {
+		m.listView.ToggleSelection()
+		m.cursor = m.listView.Cursor()
+		m.batchMode = len(m.listView.GetSelected()) > 0
+		return m, nil
+	}
+
 	if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 		switch msg.String() {
 		case "r":
