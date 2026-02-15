@@ -1,6 +1,7 @@
 package readwise
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -40,6 +41,35 @@ func (ft FlexibleTime) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("\"%s\"", ft.Format(time.RFC3339))), nil
 }
 
+// FlexibleTags handles the tags field which can be an object or array
+type FlexibleTags []string
+
+// UnmarshalJSON handles both object {} and array [] formats
+func (ft *FlexibleTags) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as array of strings first
+	var tagsArray []string
+	if err := json.Unmarshal(data, &tagsArray); err == nil {
+		*ft = tagsArray
+		return nil
+	}
+
+	// If that fails, try to unmarshal as object (map)
+	var tagsMap map[string]interface{}
+	if err := json.Unmarshal(data, &tagsMap); err == nil {
+		// Convert map keys to slice
+		tags := make([]string, 0, len(tagsMap))
+		for key := range tagsMap {
+			tags = append(tags, key)
+		}
+		*ft = tags
+		return nil
+	}
+
+	// If both fail, return empty slice
+	*ft = []string{}
+	return nil
+}
+
 // Item represents a Readwise Reader document
 type Item struct {
 	ID              string        `json:"id"`
@@ -56,7 +86,7 @@ type Item struct {
 	SavedAt         FlexibleTime  `json:"saved_at"`
 	CreatedAt       FlexibleTime  `json:"created_at"`
 	UpdatedAt       FlexibleTime  `json:"updated_at"`
-	Tags            []string      `json:"tags"`
+	Tags            FlexibleTags  `json:"tags"`
 	Summary         string        `json:"summary"`
 	Notes           string        `json:"notes"`
 	ReadingProgress float64       `json:"reading_progress"`
@@ -80,7 +110,7 @@ type SimplifiedItem struct {
 	SavedAt         FlexibleTime  `json:"saved_at"`
 	CreatedAt       FlexibleTime  `json:"created_at"`
 	UpdatedAt       FlexibleTime  `json:"updated_at"`
-	Tags            []string      `json:"tags"`
+	Tags            FlexibleTags  `json:"tags"`
 	Summary         string        `json:"summary"`
 	Notes           string        `json:"notes"`
 	ReadingProgress float64       `json:"reading_progress"`

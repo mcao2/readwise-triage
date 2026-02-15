@@ -251,7 +251,7 @@ func TestExtractForPerplexity(t *testing.T) {
 			SavedAt:   now,
 			CreatedAt: now,
 			UpdatedAt: now,
-			Tags:      []string{"tag1", "tag2"},
+			Tags:      FlexibleTags{"tag1", "tag2"},
 		},
 	}
 
