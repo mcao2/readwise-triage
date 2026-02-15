@@ -46,12 +46,18 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
   - Value receivers should be avoided for consistency unless the type is a primitive or very small immutable struct.
 
 ### 3. TUI (Bubble Tea) Architecture
-- **State Management**: The `Model` struct in `internal/ui/model.go` is the central state. 
+- **State Management**: The `Model` struct in `internal/ui/model.go` is the central state.
 - **Component Communication**: Use `tea.Cmd` and messages (e.g., `ItemsLoadedMsg`) to handle asynchronous operations like API calls.
 - **View Logic**: Keep `View()` methods pure. Delegate layout to sub-methods (e.g., `reviewingView()`) and use `lipgloss` for styling.
 - **Pointer Consistency**: Always ensure `Update`, `View`, and `Init` use pointer receivers to avoid state loss during render cycles.
 - **Stable Sorting**: When iterating over maps for UI elements (e.g., theme names), ALWAYS sort the keys first. Go map iteration is random and causes unstable UI behavior/test failures.
 - **Selection Awareness**: Batch actions (`e`, `o`, `u`) MUST respect the selection state. Use `m.listView.GetSelected()` to determine if a targeted subset of items should be processed.
+- **Spinner & Progress**: Use `bubbles/spinner` for loading states and `bubbles/progress` for progress bars. The spinner must be ticked via `Init()` returning `m.spinner.Tick`, and both spinner and progress `TickMsg`/`FrameMsg` must be handled in `Update()`.
+- **Theme Propagation**: When cycling themes, update ALL theme-dependent components: `m.styles`, `m.listView.UpdateTableStyles()`, and `m.spinner.Style`. Missing any causes visual inconsistency.
+- **Layout Structure**: The reviewing view uses a header bar (app name + count), table, detail pane, status line, and footer. Use `lipgloss.JoinVertical` to compose these. Other views use `m.styles.Border` or `m.styles.Card` for centered panel layouts.
+- **Help System**: The `?` key toggles `m.showHelp` between a compact two-line footer (`renderReviewFooter`) and a full categorized overlay (`renderFullHelp`). Help entries use the `helpEntry{key, desc}` struct rendered via `renderHelpLine`.
+- **Detail Pane**: `ListView.DetailView()` renders item metadata below the table. It gracefully handles missing fields (URL, summary, tags, etc.) by only rendering lines that have content.
+- **Column Widths**: Let the table column `Width` handle padding — don't hardcode trailing spaces in cell text. Use `runewidth.FillRight` only to pad to the column width.
 
 ### 4. Testing Best Practices
 - **Logic over View**: Focus unit tests on `Update()` and helper methods that modify state. View rendering can be smoke-tested for non-empty output.
@@ -59,6 +65,8 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 - **Key Binding Verification**: When testing keyboard input, use `tea.KeyMsg` and verify the resulting `Model` state or `tea.Cmd`.
 - **Coverage**: Aim for high coverage in `internal/ui` to catch state transition regressions.
 - **HTTP Mock Pattern**: `mockHTTPClient` in `readwise_test.go` captures requests (including body copies) and returns canned responses. Use it to verify request payloads, retry behavior, and call counts.
+- **View Content Tests**: When testing view output, use `strings.Contains` on rendered content rather than exact string matching — lipgloss styling adds ANSI codes that make exact matching fragile.
+- **Spinner in Tests**: `Init()` returns a spinner tick command. Tests that check `Init()` should expect a non-nil `tea.Cmd`. The spinner `TickMsg` can be triggered via `m.spinner.Tick()` for testing the update loop.
 
 ### 5. Readwise API Integration
 - API logic resides in `internal/readwise/`.
@@ -87,6 +95,8 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 - **NO Type Suppression**: Never use `@ts-ignore` or equivalent in Go.
 - **Evidence Required**: No task is complete without `lsp_diagnostics` being clean on changed files and `go build ./...` succeeding.
 - **Commit Pattern**: Create atomic commits with descriptive messages (e.g., `Fix: ...`, `Feat: ...`, `Refactor: ...`). Commit frequently along the way to maintain a clean and revertible history.
+- **Gitignore**: `cmd/readwise-triage` (the binary) is gitignored. When staging files, don't `git add` that path — only add the `.go` source file at `cmd/readwise-triage/main.go`.
+- **Bubbles Subpackages**: Some `bubbles` subpackages (e.g., `progress`) pull in transitive dependencies (e.g., `harmonica`) that aren't in `go.sum` by default. Run `go get github.com/charmbracelet/bubbles/<subpackage>` to resolve missing `go.sum` entries before building.
 
 ---
 
@@ -100,3 +110,8 @@ When adding shortcuts, update:
 
 ### Emoji Alignment
 Use `github.com/mattn/go-runewidth` for all string manipulations involving emojis (e.g., padding and truncation) to ensure visual alignment in the TUI.
+
+### Theme & Styles Architecture
+- Themes are defined in `internal/ui/styles.go` as `Theme` structs with color hex values. Each theme must include all fields including `Subtle` (used for borders/separators).
+- `Styles` struct contains both semantic styles (`Title`, `Error`, `Success`) and layout styles (`HeaderBar`, `FooterBar`, `Border`, `Card`, `Detail`) plus help-specific styles (`HelpKey`, `HelpDesc`, `HelpSep`).
+- When adding a new theme, add it to the `Themes` map. Themes are sorted alphabetically for stable cycling.
