@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 type ListView struct {
@@ -66,8 +67,8 @@ func (lv *ListView) updateRows() {
 			selected = "[x]"
 		}
 
-		actionText := getActionText(item.Action)
-		priorityText := getPriorityText(item.Priority)
+		actionText := runewidth.FillRight(getActionText(item.Action), 12)
+		priorityText := runewidth.FillRight(getPriorityText(item.Priority), 12)
 		category := Truncate(item.Category, 12)
 		info := fmt.Sprintf("%s | %dw", Truncate(item.ReadingTime, 6), item.WordCount)
 		title := Truncate(item.Title, lv.width-70)
@@ -78,8 +79,8 @@ func (lv *ListView) updateRows() {
 }
 
 func Truncate(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen-3] + "..."
+	if runewidth.StringWidth(s) > maxLen {
+		return runewidth.Truncate(s, maxLen, "...")
 	}
 	return s
 }
@@ -87,28 +88,28 @@ func Truncate(s string, maxLen int) string {
 func getActionText(action string) string {
 	switch action {
 	case "read_now":
-		return "🔥 Read    "
+		return "🔥 Read"
 	case "later":
-		return "⏰ Later   "
+		return "⏰ Later"
 	case "archive":
-		return "📁 Archive "
+		return "📁 Archive"
 	case "delete":
-		return "🗑️ Delete  "
+		return "🗑️ Delete"
 	default:
-		return "❓ New     "
+		return "❓ New"
 	}
 }
 
 func getPriorityText(priority string) string {
 	switch priority {
 	case "high":
-		return "🔴 High   "
+		return "🔴 High"
 	case "medium":
-		return "🟡 Medium "
+		return "🟡 Medium"
 	case "low":
-		return "🟢 Low    "
+		return "🟢 Low"
 	default:
-		return "⚪ None   "
+		return "⚪ None"
 	}
 }
 
