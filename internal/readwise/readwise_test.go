@@ -395,3 +395,181 @@ func TestUpdateDocumentNoDocumentIDInBody(t *testing.T) {
 		t.Errorf("expected location=archive, got %v", payload["location"])
 	}
 }
+
+func TestBatchUpdate(t *testing.T) {
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))},
+			{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))},
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock), WithBaseURL("http://fake"))
+
+	updates := []UpdateRequest{
+		{DocumentID: "1", Location: "archive"},
+		{DocumentID: "2", Tags: []string{"read_now"}},
+	}
+
+	progressChan := make(chan BatchUpdateProgress, 2)
+	result, err := client.BatchUpdate(updates, progressChan)
+	close(progressChan)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Total != 2 {
+		t.Errorf("expected total 2, got %d", result.Total)
+	}
+	if result.Success != 2 {
+		t.Errorf("expected 2 successes, got %d", result.Success)
+	}
+	if result.Failed != 0 {
+		t.Errorf("expected 0 failures, got %d", result.Failed)
+	}
+
+	// Drain progress channel and verify
+	var progresses []BatchUpdateProgress
+	for p := range progressChan {
+		progresses = append(progresses, p)
+	}
+	// Channel was already drained by BatchUpdate writing to buffered chan
+	// Verify via result instead
+}
+
+func TestBatchUpdateWithFailure(t *testing.T) {
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))},
+			// Second update: 3 retries all fail with 500
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock), WithBaseURL("http://fake"))
+
+	updates := []UpdateRequest{
+		{DocumentID: "1", Location: "archive"},
+		{DocumentID: "2", Tags: []string{"read_now"}},
+	}
+
+	result, err := client.BatchUpdate(updates, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Success != 1 {
+		t.Errorf("expected 1 success, got %d", result.Success)
+	}
+	if result.Failed != 1 {
+		t.Errorf("expected 1 failure, got %d", result.Failed)
+	}
+	if len(result.Errors) != 1 {
+		t.Errorf("expected 1 error, got %d", len(result.Errors))
+	}
+}
+
+func TestBatchUpdateProgress(t *testing.T) {
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))},
+			{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock), WithBaseURL("http://fake"))
+
+	updates := []UpdateRequest{
+		{DocumentID: "doc1", Location: "later"},
+		{DocumentID: "doc2", Location: "archive"},
+	}
+
+	progressChan := make(chan BatchUpdateProgress, 10)
+	result, err := client.BatchUpdate(updates, progressChan)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Success != 2 {
+		t.Errorf("expected 2 successes, got %d", result.Success)
+	}
+
+	// Read progress messages
+	var progresses []BatchUpdateProgress
+	close(progressChan)
+	for p := range progressChan {
+		progresses = append(progresses, p)
+	}
+
+	if len(progresses) != 2 {
+		t.Fatalf("expected 2 progress messages, got %d", len(progresses))
+	}
+
+	if progresses[0].Current != 1 || progresses[0].Total != 2 || progresses[0].ItemID != "doc1" || !progresses[0].Success {
+		t.Errorf("unexpected first progress: %+v", progresses[0])
+	}
+	if progresses[1].Current != 2 || progresses[1].Total != 2 || progresses[1].ItemID != "doc2" || !progresses[1].Success {
+		t.Errorf("unexpected second progress: %+v", progresses[1])
+	}
+}
+
+func TestUpdateDocumentWithTags(t *testing.T) {
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock), WithBaseURL("http://fake"))
+
+	err := client.UpdateDocument(UpdateRequest{
+		DocumentID: "doc1",
+		Tags:       []string{"read_now", "priority:high", "golang"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(mock.requests) == 0 {
+		t.Fatal("expected at least one request")
+	}
+
+	body, _ := io.ReadAll(mock.requests[0].Body)
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	tags, ok := payload["tags"].([]interface{})
+	if !ok {
+		t.Fatal("expected tags in payload")
+	}
+	if len(tags) != 3 {
+		t.Errorf("expected 3 tags, got %d", len(tags))
+	}
+}
+
+func TestDoRequestServerError(t *testing.T) {
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+			{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(bytes.NewReader([]byte(`error`)))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock), WithBaseURL("http://fake"))
+	req, _ := http.NewRequest("GET", "http://fake/list/", nil)
+
+	_, err := client.doRequest(req)
+	if err == nil {
+		t.Fatal("expected error after all retries exhausted")
+	}
+	if mock.callCount != 3 {
+		t.Errorf("expected 3 attempts, got %d", mock.callCount)
+	}
+}
