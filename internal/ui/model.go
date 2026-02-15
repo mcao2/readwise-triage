@@ -672,9 +672,9 @@ func (m *Model) reviewingView() string {
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
 		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • f: more • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • f: more • u: update • q: quit")
 	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • f: more • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • f: more • u: update • q: quit")
 	}
 
 	var statusText string
