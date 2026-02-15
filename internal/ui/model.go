@@ -360,7 +360,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state = StateEditing
 		}
 		return m, nil
-	case msg.String() == "x" || msg.String() == "space":
+	case msg.String() == "x" || msg.String() == " " || msg.String() == "space":
 		m.listView.ToggleSelection()
 		m.cursor = m.listView.Cursor()
 		m.batchMode = len(m.listView.GetSelected()) > 0
