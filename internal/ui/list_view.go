@@ -87,28 +87,28 @@ func Truncate(s string, maxLen int) string {
 func getActionText(action string) string {
 	switch action {
 	case "read_now":
-		return "🔥 Read"
+		return "🔥 Read    "
 	case "later":
-		return "⏰ Later"
+		return "⏰ Later   "
 	case "archive":
-		return "📁 Archive"
+		return "📁 Archive "
 	case "delete":
-		return "🗑️ Delete"
+		return "🗑️ Delete  "
 	default:
-		return "❓ New"
+		return "❓ New     "
 	}
 }
 
 func getPriorityText(priority string) string {
 	switch priority {
 	case "high":
-		return "🔴 High"
+		return "🔴 High   "
 	case "medium":
-		return "🟡 Medium"
+		return "🟡 Medium "
 	case "low":
-		return "🟢 Low"
+		return "🟢 Low    "
 	default:
-		return "⚪ None"
+		return "⚪ None   "
 	}
 }
 
