@@ -13,6 +13,7 @@ type KeyMap struct {
 	Quit   key.Binding
 	Help   key.Binding
 	Select key.Binding
+	Open   key.Binding
 }
 
 // DefaultKeyMap returns the default keybindings
@@ -36,7 +37,7 @@ func DefaultKeyMap() KeyMap {
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "select/open"),
+			key.WithHelp("enter", "select"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "backspace"),
@@ -54,6 +55,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("x", " ", "space"),
 			key.WithHelp("x/space", "toggle select"),
 		),
+		Open: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "open url"),
+		),
 	}
 }
 
@@ -61,6 +66,6 @@ func DefaultKeyMap() KeyMap {
 func (k KeyMap) Keys() []key.Binding {
 	return []key.Binding{
 		k.Up, k.Down, k.Left, k.Right,
-		k.Enter, k.Back, k.Quit, k.Help, k.Select,
+		k.Enter, k.Back, k.Quit, k.Help, k.Select, k.Open,
 	}
 }

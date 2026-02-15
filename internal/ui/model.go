@@ -349,7 +349,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.listView.MoveCursor(1)
 		m.cursor = m.listView.Cursor()
 		return m, nil
-	case keyMatches(msg, m.keys.Enter):
+	case keyMatches(msg, m.keys.Open):
 		if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 			_ = openURL(item.URL)
 		}
@@ -574,9 +574,9 @@ func (m Model) reviewingView() string {
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
 		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • enter: open url • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • q: quit")
 	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • enter: open url • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • q: quit")
 	}
 
 	var statusText string
