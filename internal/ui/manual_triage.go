@@ -204,25 +204,25 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 			continue
 		}
 
-		if result.Title == "" {
-			errors = append(errors, fmt.Sprintf("result %d: missing title", i))
-			continue
+		displayTitle := result.Title
+		if displayTitle == "" {
+			displayTitle = result.ID
 		}
 
 		// Validate triage decision
 		if result.TriageDecision.Action == "" {
-			errors = append(errors, fmt.Sprintf("result %d (%s): missing triage_decision.action", i, result.Title))
+			errors = append(errors, fmt.Sprintf("result %d (%s): missing triage_decision.action", i, displayTitle))
 			continue
 		}
 
 		if !validActions[result.TriageDecision.Action] {
-			errors = append(errors, fmt.Sprintf("result %d (%s): invalid action '%s' (must be one of: read_now, later, archive)", i, result.Title, result.TriageDecision.Action))
+			errors = append(errors, fmt.Sprintf("result %d (%s): invalid action '%s' (must be one of: read_now, later, archive)", i, displayTitle, result.TriageDecision.Action))
 			continue
 		}
 
 		// Validate priority if provided
 		if result.TriageDecision.Priority != "" && !validPriorities[result.TriageDecision.Priority] {
-			errors = append(errors, fmt.Sprintf("result %d (%s): invalid priority '%s' (must be one of: high, medium, low)", i, result.Title, result.TriageDecision.Priority))
+			errors = append(errors, fmt.Sprintf("result %d (%s): invalid priority '%s' (must be one of: high, medium, low)", i, displayTitle, result.TriageDecision.Priority))
 			continue
 		}
 

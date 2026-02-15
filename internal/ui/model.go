@@ -207,6 +207,13 @@ func (m *Model) View() string {
 }
 
 func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.state {
+	case StateDone:
+		return m.handleDoneKeys(msg)
+	case StateMessage:
+		return m.handleMessageKeys(msg)
+	}
+
 	switch {
 	case keyMatches(msg, m.keys.Quit):
 		return m, tea.Quit
@@ -221,10 +228,6 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReviewingKeys(msg)
 	case StateConfirming:
 		return m.handleConfirmingKeys(msg)
-	case StateDone:
-		return m.handleDoneKeys(msg)
-	case StateMessage:
-		return m.handleMessageKeys(msg)
 	}
 
 	return m, nil
