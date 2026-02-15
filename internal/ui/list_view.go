@@ -94,7 +94,7 @@ func getActionText(action string) string {
 	case "archive":
 		return "📁 Archive"
 	case "delete":
-		return "🗑️ Delete"
+		return "🗑 Delete"
 	default:
 		return "❓ New"
 	}
