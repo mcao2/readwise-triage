@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type ListView struct {
@@ -18,18 +19,31 @@ type ListView struct {
 
 func NewListView(width, height int) ListView {
 	columns := []table.Column{
-		{Title: "", Width: 3},
-		{Title: "Action", Width: 8},
-		{Title: "Priority", Width: 10},
-		{Title: "Category", Width: 10},
-		{Title: "Info", Width: 15},
-		{Title: "Title", Width: width - 70},
+		{Title: " ", Width: 3},
+		{Title: "Action", Width: 12},
+		{Title: "Priority", Width: 12},
+		{Title: "Category", Width: 12},
+		{Title: "Info", Width: 18},
+		{Title: "Title", Width: width - 65},
 	}
+
+	s := table.DefaultStyles()
+	s.Header = s.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		BorderBottom(true).
+		Bold(false)
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.Color("57")).
+		Bold(false)
 
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithHeight(height-4),
+		table.WithFocused(true),
 	)
+	t.SetStyles(s)
 
 	return ListView{
 		table:    t,
@@ -54,9 +68,9 @@ func (lv *ListView) updateRows() {
 
 		actionText := getActionText(item.Action)
 		priorityText := getPriorityText(item.Priority)
-		category := Truncate(item.Category, 8)
+		category := Truncate(item.Category, 12)
 		info := fmt.Sprintf("%s | %dw", Truncate(item.ReadingTime, 6), item.WordCount)
-		title := Truncate(item.Title, lv.width-75)
+		title := Truncate(item.Title, lv.width-70)
 
 		rows[i] = table.Row{selected, actionText, priorityText, category, info, title}
 	}
@@ -155,12 +169,12 @@ func (lv *ListView) SetWidthHeight(width, height int) {
 	lv.table.SetHeight(height - 4)
 
 	columns := []table.Column{
-		{Title: "", Width: 3},
-		{Title: "Action", Width: 8},
-		{Title: "Priority", Width: 10},
-		{Title: "Category", Width: 10},
-		{Title: "Info", Width: 15},
-		{Title: "Title", Width: width - 70},
+		{Title: " ", Width: 3},
+		{Title: "Action", Width: 12},
+		{Title: "Priority", Width: 12},
+		{Title: "Category", Width: 12},
+		{Title: "Info", Width: 18},
+		{Title: "Title", Width: width - 65},
 	}
 	lv.table.SetColumns(columns)
 }
