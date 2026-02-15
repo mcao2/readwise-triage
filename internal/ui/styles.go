@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"sort"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Theme represents a color theme for the application
 type Theme struct {
@@ -125,11 +129,11 @@ func DefaultStyles() Styles {
 	return NewStyles(Themes["default"])
 }
 
-// GetThemeNames returns available theme names
 func GetThemeNames() []string {
 	names := make([]string, 0, len(Themes))
 	for name := range Themes {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }
