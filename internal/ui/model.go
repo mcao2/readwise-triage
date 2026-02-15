@@ -477,10 +477,14 @@ func (m *Model) waitForUpdateProgress(ch chan readwise.BatchUpdateProgress, succ
 
 func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case keyMatches(msg, m.keys.Up), keyMatches(msg, m.keys.Down):
-		// Forward navigation keys to the table so it handles scrolling/viewport
-		m.listView.UpdateTable(msg)
-		m.cursor = m.listView.SyncCursor()
+	case keyMatches(msg, m.keys.Up):
+		// Use SetCursor directly to avoid the table's broken YOffset logic in MoveUp/MoveDown
+		m.listView.MoveCursor(-1)
+		m.cursor = m.listView.Cursor()
+		return m, nil
+	case keyMatches(msg, m.keys.Down):
+		m.listView.MoveCursor(1)
+		m.cursor = m.listView.Cursor()
 		return m, nil
 	case keyMatches(msg, m.keys.Open):
 		selected := m.listView.GetSelected()
