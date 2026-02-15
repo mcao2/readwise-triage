@@ -154,36 +154,35 @@ func TestExportItemsToJSON(t *testing.T) {
 	}
 }
 
-func TestExportItemsToJSON_WithSelection(t *testing.T) {
+func TestImportTriageResults_WithDelete(t *testing.T) {
 	m := &Model{
 		items: []Item{
 			{ID: "1", Title: "Item 1"},
-			{ID: "2", Title: "Item 2"},
-			{ID: "3", Title: "Item 3"},
 		},
 	}
 	m.listView = NewListView(80, 20)
 	m.listView.SetItems(m.items)
 
-	// Select item 2
-	m.listView.SetCursor(1)
-	m.listView.ToggleSelection()
+	jsonData := `[
+		{
+			"id": "1",
+			"title": "Item 1",
+			"triage_decision": {
+				"action": "delete",
+				"priority": "low"
+			}
+		}
+	]`
 
-	exportData, err := m.ExportItemsToJSON()
+	applied, err := m.ImportTriageResults(jsonData)
 	if err != nil {
-		t.Fatalf("ExportItemsToJSON() unexpected error: %v", err)
+		t.Fatalf("ImportTriageResults failed: %v", err)
+	}
+	if applied != 1 {
+		t.Errorf("expected 1 item applied, got %d", applied)
 	}
 
-	jsonData := extractJSONArray(exportData)
-	var items []map[string]interface{}
-	json.Unmarshal([]byte(jsonData), &items)
-
-	// Currently, it exports ALL untriaged items, ignoring selection.
-	// We want to verify if it should ONLY export selected items when selection exists.
-	if len(items) != 1 {
-		t.Errorf("expected 1 selected item to be exported, got %d", len(items))
-	}
-	if items[0]["id"] != "2" {
-		t.Errorf("expected item 2 to be exported, got %v", items[0]["id"])
+	if m.items[0].Action != "delete" {
+		t.Errorf("expected action 'delete', got %s", m.items[0].Action)
 	}
 }

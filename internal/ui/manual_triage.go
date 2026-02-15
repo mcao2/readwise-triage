@@ -16,6 +16,7 @@ var validActions = map[string]bool{
 	"read_now": true,
 	"later":    true,
 	"archive":  true,
+	"delete":   true,
 }
 
 // Valid priorities for triage decisions
