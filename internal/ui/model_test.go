@@ -519,3 +519,434 @@ func TestUpdateRequestWithTags(t *testing.T) {
 	}
 }
 
+func TestAllSingleItemActions(t *testing.T) {
+	tests := []struct {
+		key    string
+		action string
+	}{
+		{"r", "read_now"},
+		{"l", "later"},
+		{"a", "archive"},
+		{"d", "delete"},
+		{"n", "needs_review"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key+"="+tt.action, func(t *testing.T) {
+			m := NewModel()
+			m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Test"}}})
+			m.state = StateReviewing
+
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
+			if m.items[0].Action != tt.action {
+				t.Errorf("expected action %q, got %q", tt.action, m.items[0].Action)
+			}
+		})
+	}
+}
+
+func TestAllSingleItemPriorities(t *testing.T) {
+	tests := []struct {
+		key      string
+		priority string
+	}{
+		{"1", "high"},
+		{"2", "medium"},
+		{"3", "low"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key+"="+tt.priority, func(t *testing.T) {
+			m := NewModel()
+			m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Test"}}})
+			m.state = StateReviewing
+
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
+			if m.items[0].Priority != tt.priority {
+				t.Errorf("expected priority %q, got %q", tt.priority, m.items[0].Priority)
+			}
+		})
+	}
+}
+
+func TestAllBatchActions(t *testing.T) {
+	tests := []struct {
+		key    string
+		action string
+	}{
+		{"r", "read_now"},
+		{"l", "later"},
+		{"a", "archive"},
+		{"d", "delete"},
+		{"n", "needs_review"},
+	}
+
+	for _, tt := range tests {
+		t.Run("batch_"+tt.key+"="+tt.action, func(t *testing.T) {
+			m := NewModel()
+			items := []Item{
+				{ID: "1", Title: "Item 1"},
+				{ID: "2", Title: "Item 2"},
+			}
+			m.Update(ItemsLoadedMsg{Items: items})
+			m.state = StateReviewing
+
+			// Select both items
+			m.listView.SetCursor(0)
+			m.listView.ToggleSelection()
+			m.listView.SetCursor(1)
+			m.listView.ToggleSelection()
+			m.batchMode = true
+
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
+			for i, item := range m.items {
+				if item.Action != tt.action {
+					t.Errorf("item %d: expected action %q, got %q", i, tt.action, item.Action)
+				}
+			}
+		})
+	}
+}
+
+func TestAllBatchPriorities(t *testing.T) {
+	tests := []struct {
+		key      string
+		priority string
+	}{
+		{"1", "high"},
+		{"2", "medium"},
+		{"3", "low"},
+	}
+
+	for _, tt := range tests {
+		t.Run("batch_"+tt.key+"="+tt.priority, func(t *testing.T) {
+			m := NewModel()
+			items := []Item{
+				{ID: "1", Title: "Item 1"},
+				{ID: "2", Title: "Item 2"},
+			}
+			m.Update(ItemsLoadedMsg{Items: items})
+			m.state = StateReviewing
+
+			m.listView.SetCursor(0)
+			m.listView.ToggleSelection()
+			m.listView.SetCursor(1)
+			m.listView.ToggleSelection()
+			m.batchMode = true
+
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
+			for i, item := range m.items {
+				if item.Priority != tt.priority {
+					t.Errorf("item %d: expected priority %q, got %q", i, tt.priority, item.Priority)
+				}
+			}
+		})
+	}
+}
+
+func TestFetchMoreKey(t *testing.T) {
+	m := NewModel()
+	items := []Item{{ID: "1", Title: "Item 1"}}
+	m.Update(ItemsLoadedMsg{Items: items})
+	m.state = StateReviewing
+
+	initialLookback := m.fetchLookback
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+
+	if m.fetchLookback != initialLookback+7 {
+		t.Errorf("expected fetchLookback %d, got %d", initialLookback+7, m.fetchLookback)
+	}
+	if m.state != StateFetching {
+		t.Errorf("expected StateFetching, got %v", m.state)
+	}
+	if cmd == nil {
+		t.Error("expected command after FetchMore key")
+	}
+}
+
+func TestToggleLLMMode(t *testing.T) {
+	m := NewModel()
+	initial := m.useLLMTriage
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
+	if m.useLLMTriage == initial {
+		t.Error("expected useLLMTriage to toggle")
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
+	if m.useLLMTriage != initial {
+		t.Error("expected useLLMTriage to toggle back")
+	}
+}
+
+func TestAllViewRendering(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(m *Model)
+	}{
+		{"config", func(m *Model) { m.state = StateConfig }},
+		{"fetching", func(m *Model) { m.state = StateFetching }},
+		{"triaging", func(m *Model) { m.state = StateTriaging }},
+		{"reviewing", func(m *Model) {
+			m.state = StateReviewing
+			m.items = []Item{{ID: "1", Title: "Test"}}
+			m.listView.SetItems(m.items)
+		}},
+		{"reviewing_batch", func(m *Model) {
+			m.state = StateReviewing
+			m.items = []Item{{ID: "1", Title: "Test"}}
+			m.listView.SetItems(m.items)
+			m.batchMode = true
+		}},
+		{"reviewing_empty", func(m *Model) {
+			m.state = StateReviewing
+			m.items = []Item{}
+		}},
+		{"confirming", func(m *Model) { m.state = StateConfirming }},
+		{"updating", func(m *Model) {
+			m.state = StateUpdating
+			m.progress = 0.5
+			m.statusMessage = "Updating..."
+		}},
+		{"done", func(m *Model) {
+			m.state = StateDone
+			m.statusMessage = "All done"
+		}},
+		{"message_success", func(m *Model) {
+			m.state = StateMessage
+			m.messageType = "success"
+			m.statusMessage = "It worked"
+		}},
+		{"message_error", func(m *Model) {
+			m.state = StateMessage
+			m.messageType = "error"
+			m.statusMessage = "Something failed"
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewModel()
+			tt.setup(m)
+			view := m.View()
+			if view == "" {
+				t.Errorf("%s view is empty", tt.name)
+			}
+		})
+	}
+}
+
+func TestConfirmingToUpdatingFlow(t *testing.T) {
+	m := NewModel()
+	m.cfg = &config.Config{ReadwiseToken: "test-token"}
+	m.items = []Item{
+		{ID: "1", Title: "Item 1", Action: "read_now", Priority: "high"},
+		{ID: "2", Title: "Item 2", Action: "later"},
+	}
+	m.listView.SetItems(m.items)
+	m.state = StateConfirming
+
+	// Press 'y' to confirm
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if cmd == nil {
+		t.Fatal("expected command after confirming 'y'")
+	}
+	if m.state != StateUpdating {
+		t.Errorf("expected StateUpdating, got %v", m.state)
+	}
+}
+
+func TestStartUpdatingNoItems(t *testing.T) {
+	m := NewModel()
+	m.cfg = &config.Config{ReadwiseToken: "test-token"}
+	m.items = []Item{
+		{ID: "1", Title: "Item 1"}, // no action set
+	}
+	m.state = StateConfirming
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if cmd == nil {
+		t.Fatal("expected command")
+	}
+
+	// Execute the command — should return UpdateFinishedMsg with 0 items
+	msg := cmd()
+	finished, ok := msg.(UpdateFinishedMsg)
+	if !ok {
+		t.Fatalf("expected UpdateFinishedMsg, got %T", msg)
+	}
+	if finished.Success != 0 || finished.Failed != 0 {
+		t.Errorf("expected 0 success/0 failed, got %d/%d", finished.Success, finished.Failed)
+	}
+}
+
+func TestStartUpdatingNoToken(t *testing.T) {
+	m := NewModel()
+	m.cfg = &config.Config{ReadwiseToken: ""}
+	m.items = []Item{
+		{ID: "1", Title: "Item 1", Action: "read_now"},
+	}
+	m.state = StateConfirming
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if cmd == nil {
+		t.Fatal("expected command")
+	}
+
+	msg := cmd()
+	errMsg, ok := msg.(ErrorMsg)
+	if !ok {
+		t.Fatalf("expected ErrorMsg, got %T", msg)
+	}
+	if errMsg.Error == nil {
+		t.Error("expected non-nil error")
+	}
+}
+
+func TestStartUpdatingWithSelection(t *testing.T) {
+	m := NewModel()
+	m.cfg = &config.Config{ReadwiseToken: "test-token"}
+	m.items = []Item{
+		{ID: "1", Title: "Item 1", Action: "read_now"},
+		{ID: "2", Title: "Item 2", Action: "later"},
+		{ID: "3", Title: "Item 3", Action: "archive"},
+	}
+	m.listView.SetItems(m.items)
+
+	// Select only item 0 and 2
+	m.listView.SetCursor(0)
+	m.listView.ToggleSelection()
+	m.listView.SetCursor(2)
+	m.listView.ToggleSelection()
+
+	m.state = StateConfirming
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if cmd == nil {
+		t.Fatal("expected command after confirming with selection")
+	}
+	if m.state != StateUpdating {
+		t.Errorf("expected StateUpdating, got %v", m.state)
+	}
+}
+
+func TestExportWithSelection(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Item 1", URL: "https://example.com/1"},
+		{ID: "2", Title: "Item 2", URL: "https://example.com/2"},
+		{ID: "3", Title: "Item 3", URL: "https://example.com/3"},
+	}
+	m.listView.SetItems(m.items)
+
+	// Select only items 0 and 2
+	m.listView.SetCursor(0)
+	m.listView.ToggleSelection()
+	m.listView.SetCursor(2)
+	m.listView.ToggleSelection()
+
+	jsonData, err := m.ExportItemsToJSON()
+	if err != nil {
+		t.Fatalf("ExportItemsToJSON failed: %v", err)
+	}
+
+	// Should contain items 1 and 3 but not 2
+	if !contains(jsonData, "Item 1") || !contains(jsonData, "Item 3") {
+		t.Error("expected selected items in export")
+	}
+	if contains(jsonData, "Item 2") {
+		t.Error("did not expect unselected item in export")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && searchString(s, substr)
+}
+
+func searchString(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func TestTriagePersistence(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Item 1"},
+		{ID: "2", Title: "Item 2"},
+	}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	// Apply action to item 1
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+
+	// Verify triage store was updated
+	if m.triageStore == nil {
+		t.Fatal("expected triageStore to be initialized")
+	}
+	entry, ok := m.triageStore.GetItem("1")
+	if !ok {
+		t.Fatal("expected item 1 to be in triage store")
+	}
+	if entry.Action != "read_now" {
+		t.Errorf("expected stored action 'read_now', got %q", entry.Action)
+	}
+	if entry.Source != "manual" {
+		t.Errorf("expected source 'manual', got %q", entry.Source)
+	}
+}
+
+func TestApplySavedTriages(t *testing.T) {
+	m := NewModel()
+
+	// Pre-populate triage store
+	m.triageStore.SetItem("1", "archive", "low", "manual")
+	m.triageStore.SetItem("2", "read_now", "high", "llm")
+
+	// Simulate loading items (which calls applySavedTriages)
+	m.Update(ItemsLoadedMsg{Items: []Item{
+		{ID: "1", Title: "Item 1"},
+		{ID: "2", Title: "Item 2"},
+		{ID: "3", Title: "Item 3"},
+	}})
+
+	if m.items[0].Action != "archive" || m.items[0].Priority != "low" {
+		t.Errorf("item 1 not restored: action=%q priority=%q", m.items[0].Action, m.items[0].Priority)
+	}
+	if m.items[1].Action != "read_now" || m.items[1].Priority != "high" {
+		t.Errorf("item 2 not restored: action=%q priority=%q", m.items[1].Action, m.items[1].Priority)
+	}
+	if m.items[2].Action != "" || m.items[2].Priority != "" {
+		t.Errorf("item 3 should have no triage: action=%q priority=%q", m.items[2].Action, m.items[2].Priority)
+	}
+}
+
+func TestStateString(t *testing.T) {
+	tests := []struct {
+		state State
+		want  string
+	}{
+		{StateConfig, "Config"},
+		{StateFetching, "Fetching"},
+		{StateTriaging, "Triaging"},
+		{StateReviewing, "Reviewing"},
+		{StateConfirming, "Confirming"},
+		{StateUpdating, "Updating"},
+		{StateDone, "Done"},
+		{StateMessage, "Message"},
+		{State(99), "Unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			if got := tt.state.String(); got != tt.want {
+				t.Errorf("State(%d).String() = %q, want %q", tt.state, got, tt.want)
+			}
+		})
+	}
+}
+
