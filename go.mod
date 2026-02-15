@@ -1,4 +1,4 @@
-module github.com/user/readwise-tui
+module github.com/mcao2/readwise-tui
 
 go 1.24.2
 
