@@ -829,7 +829,18 @@ func (m *Model) reviewingView() string {
 	}
 	parts = append(parts, footer)
 
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+
+	// Pad output to exactly m.height lines so the alternate screen buffer
+	// repaints cleanly and doesn't leave stale content from previous frames.
+	if m.height > 0 {
+		rendered := strings.Split(content, "\n")
+		for len(rendered) < m.height {
+			rendered = append(rendered, "")
+		}
+		return strings.Join(rendered[:m.height], "\n")
+	}
+	return content
 }
 
 func (m *Model) confirmingView() string {
