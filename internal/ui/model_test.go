@@ -1663,3 +1663,72 @@ func TestSpinnerUpdate(t *testing.T) {
 		t.Error("expected spinner tick to return a command")
 	}
 }
+
+func TestNavigationAfterMultipleUpdateCycles(t *testing.T) {
+	m := NewModel()
+	m.cfg = &config.Config{ReadwiseToken: "test-token"}
+
+	items := []Item{
+		{ID: "1", Title: "Item 1"},
+		{ID: "2", Title: "Item 2"},
+		{ID: "3", Title: "Item 3"},
+	}
+	m.Update(ItemsLoadedMsg{Items: items})
+
+	for cycle := 0; cycle < 5; cycle++ {
+		// Triage first item
+		m.listView.SetCursor(0)
+		m.cursor = 0
+		m.state = StateReviewing
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+
+		if m.items[0].Action != "read_now" {
+			t.Fatalf("cycle %d: expected action read_now, got %q", cycle, m.items[0].Action)
+		}
+
+		// Go to confirming → updating → done
+		m.state = StateConfirming
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+
+		// Simulate update finishing
+		m.Update(UpdateFinishedMsg{Success: 1, Failed: 0})
+		if m.state != StateDone {
+			t.Fatalf("cycle %d: expected StateDone, got %v", cycle, m.state)
+		}
+
+		// Press any key to go back to reviewing
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+		if m.state != StateReviewing {
+			t.Fatalf("cycle %d: expected StateReviewing after done, got %v", cycle, m.state)
+		}
+
+		// Verify navigation works
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+		if m.cursor != 1 {
+			t.Fatalf("cycle %d: expected cursor 1 after j, got %d", cycle, m.cursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+		if m.cursor != 2 {
+			t.Fatalf("cycle %d: expected cursor 2 after j, got %d", cycle, m.cursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+		if m.cursor != 1 {
+			t.Fatalf("cycle %d: expected cursor 1 after k, got %d", cycle, m.cursor)
+		}
+
+		// Verify items are still there
+		if len(m.items) != 3 {
+			t.Fatalf("cycle %d: expected 3 items, got %d", cycle, len(m.items))
+		}
+
+		// Verify listView items are in sync
+		for i := 0; i < 3; i++ {
+			item := m.listView.GetItem(i)
+			if item == nil {
+				t.Fatalf("cycle %d: listView item %d is nil", cycle, i)
+			}
+		}
+	}
+}
