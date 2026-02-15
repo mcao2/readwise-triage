@@ -51,7 +51,7 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("?", "help"),
 		),
 		Select: key.NewBinding(
-			key.WithKeys("x", " "),
+			key.WithKeys("x", "space"),
 			key.WithHelp("x/space", "toggle select"),
 		),
 	}

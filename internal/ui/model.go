@@ -401,7 +401,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.applyBatchPriority("medium")
 		case "3":
 			m.applyBatchPriority("low")
-		case "x", " ":
+		case "x", "space":
 			m.listView.ToggleSelection()
 			m.cursor = m.listView.Cursor()
 			m.batchMode = len(m.listView.GetSelected()) > 0
@@ -410,7 +410,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle x/space for selection (in case keyMatches doesn't catch it)
-	if msg.String() == "x" || msg.String() == " " {
+	if msg.String() == "x" || msg.String() == "space" {
 		m.listView.ToggleSelection()
 		m.cursor = m.listView.Cursor()
 		m.batchMode = len(m.listView.GetSelected()) > 0
