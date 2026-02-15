@@ -14,6 +14,7 @@ type Config struct {
 	ReadwiseToken    string `yaml:"readwise_token"`
 	PerplexityAPIKey string `yaml:"perplexity_api_key"`
 	DefaultDaysAgo   int    `yaml:"default_days_ago"`
+	Theme            string `yaml:"theme"`
 }
 
 // Load loads configuration from config file and environment variables
@@ -120,6 +121,9 @@ perplexity_api_key: "your_api_key_here"
 
 # Optional: Default number of days to fetch (default: 7)
 default_days_ago: 7
+
+# Optional: Color theme (default, catppuccin, dracula, nord, gruvbox)
+theme: "default"
 `
 
 	return os.WriteFile(configPath, []byte(example), 0600)

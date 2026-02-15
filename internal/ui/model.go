@@ -57,6 +57,7 @@ type Model struct {
 	keys   KeyMap
 
 	useLLMTriage bool
+	themeIndex   int
 
 	// Data
 	items         []Item
@@ -94,9 +95,16 @@ func NewModel() Model {
 		selectedIndex: 0,
 		cursor:        0,
 		selected:      make(map[int]bool),
+		themeIndex:    0,
 	}
 	m.listView = NewListView(80, 24)
 	return m
+}
+
+func (m *Model) cycleTheme() {
+	themeNames := GetThemeNames()
+	m.themeIndex = (m.themeIndex + 1) % len(themeNames)
+	m.styles = NewStyles(Themes[themeNames[m.themeIndex]])
 }
 
 // Init initializes the model
@@ -202,16 +210,34 @@ type ItemsLoadedMsg struct {
 }
 
 // State handlers
-func (m Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Enter):
-		return m, func() tea.Msg {
-			return StateChangeMsg{State: StateFetching}
-		}
+		return m, m.startFetching()
 	case msg.String() == "m":
 		m.useLLMTriage = !m.useLLMTriage
+	case msg.String() == "t":
+		m.cycleTheme()
 	}
 	return m, nil
+}
+
+func (m Model) startFetching() tea.Cmd {
+	return tea.Batch(
+		func() tea.Msg {
+			return StateChangeMsg{State: StateFetching}
+		},
+		func() tea.Msg {
+			// Simulate fetching for now - replace with actual fetch
+			// In production, this would call the readwise client
+			return ItemsLoadedMsg{
+				Items: []Item{
+					{ID: "1", Title: "Sample Article 1", Action: "", Priority: ""},
+					{ID: "2", Title: "Sample Article 2", Action: "", Priority: ""},
+				},
+			}
+		},
+	)
 }
 
 func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -305,8 +331,11 @@ func (m Model) configView() string {
 		modeText = m.styles.Normal.Render("Mode: Manual Triage")
 	}
 
-	help := m.styles.Help.Render("Enter: start • m: toggle mode • q: quit")
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", modeText, "", help)
+	themeNames := GetThemeNames()
+	themeText := m.styles.Normal.Render("Theme: " + Themes[themeNames[m.themeIndex]].Name)
+
+	help := m.styles.Help.Render("Enter: start • m: toggle mode • t: change theme • q: quit")
+	return lipgloss.JoinVertical(lipgloss.Center, title, "", modeText, "", themeText, "", help)
 }
 
 func (m Model) fetchingView() string {

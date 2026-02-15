@@ -52,8 +52,10 @@ You can configure `readwise-triage` using either **environment variables** or a 
 Create a config file at `~/.config/readwise-triage/config.yaml`:
 
 ```yaml
-# Required: Your Readwise API token
+# Readwise Triage Configuration
 # Get your token at: https://readwise.io/access_token
+
+# Required: Your Readwise API token
 readwise_token: "your_token_here"
 
 # Optional: Perplexity API key for LLM auto-triage
@@ -62,7 +64,22 @@ perplexity_api_key: "your_api_key_here"
 
 # Optional: Default number of days to fetch (default: 7)
 default_days_ago: 7
+
+# Optional: Color theme (default, catppuccin, dracula, nord, gruvbox)
+theme: "default"
 ```
+
+### Themes
+
+Readwise Triage comes with several built-in color themes:
+
+- **default** - Clean purple/blue theme
+- **catppuccin** - Soft pastel colors  
+- **dracula** - Popular dark theme
+- **nord** - Arctic-inspired colors
+- **gruvbox** - Retro groove colors
+
+Press `t` in the config screen to cycle through themes, or set it in your config file.
 
 To use a custom config file location, set the `READWISE_TRIAGE_CONFIG` environment variable:
 
@@ -92,6 +109,11 @@ export DEFAULT_DAYS_AGO=7  # Optional
 **Global**:
 - `q` / `Ctrl+C` - Quit
 - `?` - Toggle help
+
+**Config Screen**:
+- `Enter` - Start fetching items
+- `m` - Toggle between LLM/Manual mode
+- `t` - Cycle through color themes
 
 **Navigation**:
 - `j` / `↓` - Move down
