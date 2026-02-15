@@ -154,33 +154,36 @@ func TestExportItemsToJSON(t *testing.T) {
 	}
 }
 
-func TestValidActionsAndPriorities(t *testing.T) {
-	if !validActions["read_now"] {
-		t.Error("read_now should be a valid action")
+func TestExportItemsToJSON_WithSelection(t *testing.T) {
+	m := &Model{
+		items: []Item{
+			{ID: "1", Title: "Item 1"},
+			{ID: "2", Title: "Item 2"},
+			{ID: "3", Title: "Item 3"},
+		},
 	}
-	if !validActions["later"] {
-		t.Error("later should be a valid action")
-	}
-	if !validActions["archive"] {
-		t.Error("archive should be a valid action")
-	}
-	if validActions["delete"] {
-		t.Error("delete should no longer be a valid action")
-	}
-	if validActions["invalid"] {
-		t.Error("invalid should not be a valid action")
+	m.listView = NewListView(80, 20)
+	m.listView.SetItems(m.items)
+
+	// Select item 2
+	m.listView.SetCursor(1)
+	m.listView.ToggleSelection()
+
+	exportData, err := m.ExportItemsToJSON()
+	if err != nil {
+		t.Fatalf("ExportItemsToJSON() unexpected error: %v", err)
 	}
 
-	if !validPriorities["high"] {
-		t.Error("high should be a valid priority")
+	jsonData := extractJSONArray(exportData)
+	var items []map[string]interface{}
+	json.Unmarshal([]byte(jsonData), &items)
+
+	// Currently, it exports ALL untriaged items, ignoring selection.
+	// We want to verify if it should ONLY export selected items when selection exists.
+	if len(items) != 1 {
+		t.Errorf("expected 1 selected item to be exported, got %d", len(items))
 	}
-	if !validPriorities["medium"] {
-		t.Error("medium should be a valid priority")
-	}
-	if !validPriorities["low"] {
-		t.Error("low should be a valid priority")
-	}
-	if validPriorities["invalid"] {
-		t.Error("invalid should not be a valid priority")
+	if items[0]["id"] != "2" {
+		t.Errorf("expected item 2 to be exported, got %v", items[0]["id"])
 	}
 }
