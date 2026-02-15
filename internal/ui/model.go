@@ -358,9 +358,18 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.listView.GetSelected()) > 0 {
 			m.state = StateBatchEditing
 		}
-	case msg.String() == "p":
-		return m, func() tea.Msg {
-			return ErrorMsg{Error: fmt.Errorf("LLM triage not yet implemented")}
+	case msg.String() == "e":
+		if err := m.ExportItemsToClipboard(); err != nil {
+			m.statusMessage = fmt.Sprintf("Export failed: %v", err)
+		} else {
+			m.statusMessage = "Items exported to clipboard! Paste to Perplexity."
+		}
+	case msg.String() == "i":
+		applied, err := m.ImportTriageResultsFromClipboard()
+		if err != nil {
+			m.statusMessage = fmt.Sprintf("Import failed: %v", err)
+		} else {
+			m.statusMessage = fmt.Sprintf("Applied triage results to %d items", applied)
 		}
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
@@ -485,8 +494,16 @@ func (m Model) reviewingView() string {
 	}
 
 	count := m.styles.Help.Render(fmt.Sprintf("Item %d of %d", m.cursor+1, len(m.items)))
-	help := m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • p: AI triage • enter: edit • b: batch • q: quit")
+	help := m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • enter: edit • b: batch • q: quit")
 
+	var statusText string
+	if m.statusMessage != "" {
+		statusText = m.styles.Normal.Render(m.statusMessage)
+	}
+
+	if statusText != "" {
+		return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, "", statusText, help)
+	}
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, help)
 }
 
