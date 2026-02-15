@@ -98,16 +98,30 @@ func NewModel() *Model {
 		triageStore = &config.TriageStore{Items: make(map[string]config.TriageEntry)}
 	}
 
-	themeIndex := 0
+	themeNames := GetThemeNames()
+	themeIndex := -1
 	themeName := cfg.Theme
-	if themeName == "" {
-		themeName = "default"
-	}
-	for i, name := range GetThemeNames() {
+
+	for i, name := range themeNames {
 		if name == themeName {
 			themeIndex = i
 			break
 		}
+	}
+
+	if themeIndex == -1 {
+		themeName = "default"
+		for i, name := range themeNames {
+			if name == themeName {
+				themeIndex = i
+				break
+			}
+		}
+	}
+
+	if themeIndex == -1 && len(themeNames) > 0 {
+		themeIndex = 0
+		themeName = themeNames[0]
 	}
 
 	useLLM := cfg.UseLLMTriage

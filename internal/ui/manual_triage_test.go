@@ -186,3 +186,35 @@ func TestImportTriageResults_WithDelete(t *testing.T) {
 		t.Errorf("expected action 'delete', got %s", m.items[0].Action)
 	}
 }
+
+func TestImportTriageResults_MissingTitle(t *testing.T) {
+	m := &Model{
+		items: []Item{
+			{ID: "1", Title: "Original Title"},
+		},
+	}
+	m.listView = NewListView(80, 20)
+	m.listView.SetItems(m.items)
+
+	jsonData := `[
+		{
+			"id": "1",
+			"triage_decision": {
+				"action": "read_now",
+				"priority": "high"
+			}
+		}
+	]`
+
+	applied, err := m.ImportTriageResults(jsonData)
+	if err != nil {
+		t.Fatalf("ImportTriageResults failed: %v", err)
+	}
+	if applied != 1 {
+		t.Errorf("expected 1 item applied, got %d", applied)
+	}
+
+	if m.items[0].Action != "read_now" {
+		t.Errorf("expected action 'read_now', got %s", m.items[0].Action)
+	}
+}

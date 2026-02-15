@@ -67,12 +67,10 @@ func (c *Config) loadFromEnv() {
 // getConfigPath returns the path to the config file
 // Priority: $READWISE_TRIAGE_CONFIG > ~/.config/readwise-triage/config.yaml
 func getConfigPath() string {
-	// Check environment variable override
 	if configPath := os.Getenv("READWISE_TRIAGE_CONFIG"); configPath != "" {
 		return configPath
 	}
 
-	// Default location
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
@@ -81,14 +79,21 @@ func getConfigPath() string {
 	return filepath.Join(home, ".config", "readwise-triage", "config.yaml")
 }
 
+func GetConfigDir() (string, error) {
+	configPath := getConfigPath()
+	if configPath == "" {
+		return "", fmt.Errorf("cannot determine config path")
+	}
+	return filepath.Dir(configPath), nil
+}
+
 // EnsureConfigDir ensures the config directory exists
 func EnsureConfigDir() (string, error) {
-	home, err := os.UserHomeDir()
+	configDir, err := GetConfigDir()
 	if err != nil {
 		return "", err
 	}
 
-	configDir := filepath.Join(home, ".config", "readwise-triage")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return "", err
 	}
