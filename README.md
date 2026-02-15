@@ -1,33 +1,42 @@
 # Readwise Triage
 
-A CLI tool for triaging Readwise Reader inbox items with AI-powered or manual categorization.
+A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual categorization.
 
 ## Features
 
-- **Two Triage Modes**:
-  - **LLM Auto-Triage**: Uses Perplexity AI to automatically categorize items
-  - **Manual Triage**: Manually review and categorize items using keyboard shortcuts
-
+- **Manual LLM Workflow**:
+  - Export untriaged items as JSON with a specialized prompt (`e`).
+  - Paste to LLM (e.g., Perplexity/GPT) for categorization.
+  - Import results back into the TUI (`i`).
+- **Persistence**: Triage decisions are saved locally across sessions.
 - **Interactive List View**:
-  - Navigate with vim-style keys (j/k)
-  - Visual indicators for actions (🔥⏰📁🗑️) and priority (🔴🟡🟢)
-  - Multi-select support for batch operations
+  - Navigate with vim-style keys (`j`/`k`).
+  - Visual indicators for actions (🔥⏰📁) and priority (🔴🟡🟢).
+  - Open articles directly in your browser (`o`).
+- **Quick Triage**: One-key shortcuts for actions (`r`, `l`, `a`) and priorities (`1`, `2`, `3`).
+- **Batch Operations**: Select multiple items with `x`/`space` to apply actions to all at once.
+- **Progressive Fetch**: Increase the lookback window to find older items (`f`).
 
-- **Quick Actions**:
-  - `r` - Set action: read_now
-  - `l` - Set action: later  
-  - `a` - Set action: archive
-  - `d` - Set action: delete
-  - `1/2/3` - Set priority: high/medium/low
+## Keyboard Interactions
 
-- **Batch Operations**:
-  - Select multiple items with `x`
-  - Apply changes to all selected items
-  - Filter by current action
-
-- **Full Edit Form**:
-  - Edit action, priority, reason, and tags
-  - Built with Huh forms for beautiful TUI experience
+| Key | Context | Action |
+|-----|---------|--------|
+| `Enter` | Config | Start fetching items |
+| `m` | Config | Toggle between LLM/Manual mode |
+| `t` | Config | Cycle through color themes |
+| `j` / `k` | Review | Navigate down / up |
+| `x` / `Space` | Review | Toggle selection (Batch mode) |
+| `r` | Review | Set action: **Read Now** (keeps in inbox, adds tag) |
+| `l` | Review | Set action: **Later** (moves to Later) |
+| `a` | Review | Set action: **Archive** (moves to Archive) |
+| `1` / `2` / `3` | Review | Set priority: **High** / **Medium** / **Low** |
+| `e` | Review | **Export** untriaged items + prompt to clipboard |
+| `i` | Review | **Import** triage results from clipboard |
+| `o` | Review | **Open** URL in default browser |
+| `f` | Review | **Fetch More** (adds 7 days to lookback window) |
+| `u` | Review | **Update** Readwise (apply all triaged changes) |
+| `q` / `Ctrl+C` | Global | Quit |
+| `?` | Global | Toggle help |
 
 ## Installation
 
@@ -49,7 +58,7 @@ You can configure `readwise-triage` using either **environment variables** or a 
 
 ### Config File
 
-Create a config file at `~/.config/readwise-triage/config.yaml`:
+The application automatically creates a config directory at `~/.config/readwise-triage/`. You can create `config.yaml` there:
 
 ```yaml
 # Readwise Triage Configuration
@@ -58,10 +67,6 @@ Create a config file at `~/.config/readwise-triage/config.yaml`:
 # Required: Your Readwise API token
 readwise_token: "your_token_here"
 
-# Optional: Perplexity API key for LLM auto-triage
-# Get your key at: https://www.perplexity.ai/settings/api
-perplexity_api_key: "your_api_key_here"
-
 # Optional: Default number of days to fetch (default: 7)
 default_days_ago: 7
 
@@ -69,79 +74,21 @@ default_days_ago: 7
 theme: "default"
 ```
 
-### Themes
+### Persistence
 
-Readwise Triage comes with several built-in color themes:
-
-- **default** - Clean purple/blue theme
-- **catppuccin** - Soft pastel colors  
-- **dracula** - Popular dark theme
-- **nord** - Arctic-inspired colors
-- **gruvbox** - Retro groove colors
-
-Press `t` in the config screen to cycle through themes, or set it in your config file.
-
-To use a custom config file location, set the `READWISE_TRIAGE_CONFIG` environment variable:
-
-```bash
-export READWISE_TRIAGE_CONFIG="/path/to/your/config.yaml"
-```
-
-### Environment Variables
-
-Alternatively, you can use environment variables (which override config file values):
-
-```bash
-export READWISE_TOKEN="your_readwise_token_here"
-export PERPLEXITY_API_KEY="your_perplexity_api_key_here"  # Optional for manual mode
-export DEFAULT_DAYS_AGO=7  # Optional
-```
-
-## Usage
-
-```bash
-# Run the application
-./readwise-triage
-```
-
-### Keyboard Shortcuts
-
-**Global**:
-- `q` / `Ctrl+C` - Quit
-- `?` - Toggle help
-
-**Config Screen**:
-- `Enter` - Start fetching items
-- `m` - Toggle between LLM/Manual mode
-- `t` - Cycle through color themes
-
-**Navigation**:
-- `j` / `↓` - Move down
-- `k` / `↑` - Move up
-- `h` / `←` - Previous screen
-- `l` / `→` / `Enter` - Select/Open
-
-**In Review Mode**:
-- `x` - Toggle selection
-- `r` - Set action: read_now
-- `l` - Set action: later
-- `a` - Set action: archive
-- `d` - Set action: delete
-- `1` - Set priority: high
-- `2` - Set priority: medium
-- `3` - Set priority: low
-- `Enter` - Edit item details
-- `b` - Batch edit selected items
-- `u` - Update Readwise
+Triage decisions are saved to `~/.config/readwise-triage/triage_store.json`. This allows you to:
+1. Re-open the tool and see your previous decisions.
+2. Only export "raw" items that haven't been triaged yet.
 
 ## Workflow
 
-1. **Start**: Choose between LLM Auto-Triage or Manual Triage mode
-2. **Fetch**: Load inbox items from Readwise
-3. **Triage** (if auto mode): AI categorizes items
-4. **Review**: Navigate and categorize items
-5. **Edit**: Fine-tune individual items or batch edit
-6. **Update**: Apply changes back to Readwise
+1. **Fetch**: Load inbox items from Readwise.
+2. **Export (`e`)**: Copy untriaged items and the triage prompt to your clipboard.
+3. **LLM**: Paste into Perplexity or ChatGPT, then copy the resulting JSON array.
+4. **Import (`i`)**: Paste the results back into the tool.
+5. **Review**: Manually adjust any items or use batch selection (`x`).
+6. **Update (`u`)**: Apply all triaged changes to your Readwise Reader account.
+
 
 ## Project Structure
 
