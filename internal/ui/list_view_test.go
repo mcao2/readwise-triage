@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/mattn/go-runewidth"
 )
 
 func TestListView_SetItems(t *testing.T) {
@@ -87,5 +89,17 @@ func TestGetActionText(t *testing.T) {
 	}
 	if !strings.Contains(getActionText(""), "New") {
 		t.Error("empty action should contain 'New'")
+	}
+}
+
+func TestActionTextAlignment(t *testing.T) {
+	actions := []string{"read_now", "later", "archive", "delete", "needs_review", ""}
+
+	for _, action := range actions {
+		text := getActionText(action)
+		width := runewidth.StringWidth(text)
+		if width != 12 {
+			t.Errorf("action '%s' text '%s' has width %d, expected 12", action, text, width)
+		}
 	}
 }
