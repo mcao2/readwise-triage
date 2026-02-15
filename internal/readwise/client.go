@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -99,6 +100,18 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			lastErr = err
+			continue
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			resp.Body.Close()
+			retryAfter := resp.Header.Get("Retry-After")
+			if seconds, err := strconv.Atoi(retryAfter); err == nil {
+				time.Sleep(time.Duration(seconds) * time.Second)
+			} else {
+				time.Sleep(retryDelay * time.Duration(attempt+1))
+			}
+			lastErr = fmt.Errorf("rate limited: %d", resp.StatusCode)
 			continue
 		}
 

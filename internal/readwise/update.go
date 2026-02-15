@@ -26,9 +26,7 @@ type BatchUpdateResult struct {
 
 // UpdateDocument updates a single document
 func (c *Client) UpdateDocument(update UpdateRequest) error {
-	payload := map[string]interface{}{
-		"document_id": update.DocumentID,
-	}
+	payload := map[string]interface{}{}
 
 	if update.Location != "" {
 		payload["location"] = update.Location
@@ -72,7 +70,7 @@ func (c *Client) BatchUpdate(updates []UpdateRequest, progressChan chan<- BatchU
 		Errors: make([]error, 0),
 	}
 
-	rateLimiter := time.NewTicker(2 * time.Second)
+	rateLimiter := time.NewTicker(1500 * time.Millisecond)
 	defer rateLimiter.Stop()
 
 	for i, update := range updates {
