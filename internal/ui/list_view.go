@@ -48,7 +48,7 @@ func NewListView(width, height int) ListView {
 		Background(lipgloss.Color("57")).
 		Bold(false)
 
-	tableHeight := height - 13
+	tableHeight := height - 12
 	if tableHeight < 5 {
 		tableHeight = 5
 	}
@@ -158,7 +158,11 @@ func getPriorityText(priority string) string {
 	}
 }
 
-// DetailView renders a detail pane for the given item
+// detailPaneHeight is the fixed number of lines the detail pane always occupies.
+// This keeps the total view height stable across items with varying metadata.
+const detailPaneHeight = 4
+
+// DetailView renders a detail pane for the given item, padded to a fixed height.
 func (lv *ListView) DetailView(width int, styles Styles) string {
 	item := lv.GetItem(lv.cursor)
 	if item == nil {
@@ -204,6 +208,11 @@ func (lv *ListView) DetailView(width int, styles Styles) string {
 	// Summary (single line, truncated)
 	if item.Summary != "" {
 		lines = append(lines, styles.HelpDesc.Render(Truncate(item.Summary, maxWidth)))
+	}
+
+	// Pad to fixed height so the view doesn't jump when navigating between items
+	for len(lines) < detailPaneHeight {
+		lines = append(lines, "")
 	}
 
 	return strings.Join(lines, "\n")
@@ -274,8 +283,8 @@ func (lv ListView) View() string {
 func (lv *ListView) SetWidthHeight(width, height int) {
 	lv.width = width
 	lv.height = height
-	// Reserve space for: header(2) + detail pane(6) + status(1) + footer(4)
-	tableHeight := height - 13
+	// Reserve space for: header(2) + divider(1) + detail pane(4) + status(1) + footer(4)
+	tableHeight := height - 12
 	if tableHeight < 5 {
 		tableHeight = 5
 	}
