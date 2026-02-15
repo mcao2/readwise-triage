@@ -296,7 +296,7 @@ func (m Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // View helpers
 func (m Model) configView() string {
-	title := m.styles.Title.Render("Readwise TUI")
+	title := m.styles.Title.Render("Readwise Triage")
 
 	var modeText string
 	if m.useLLMTriage {
