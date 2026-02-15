@@ -23,6 +23,7 @@ const (
 	StateConfirming
 	StateUpdating
 	StateDone
+	StateMessage
 )
 
 func (s State) String() string {
@@ -45,6 +46,8 @@ func (s State) String() string {
 		return "Updating"
 	case StateDone:
 		return "Done"
+	case StateMessage:
+		return "Message"
 	default:
 		return "Unknown"
 	}
@@ -75,6 +78,7 @@ type Model struct {
 	// Progress
 	progress      float64
 	statusMessage string
+	messageType   string // "error" or "success"
 
 	// Config
 	cfg *config.Config
@@ -207,6 +211,8 @@ func (m Model) View() string {
 		return m.updatingView()
 	case StateDone:
 		return m.doneView()
+	case StateMessage:
+		return m.messageView()
 	default:
 		return "Unknown state"
 	}
@@ -235,6 +241,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleBatchEditingKeys(msg)
 	case StateConfirming:
 		return m.handleConfirmingKeys(msg)
+	case StateMessage:
+		return m.handleMessageKeys(msg)
 	}
 
 	return m, nil
@@ -361,16 +369,22 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case msg.String() == "e":
 		if err := m.ExportItemsToClipboard(); err != nil {
 			m.statusMessage = fmt.Sprintf("Export failed: %v", err)
+			m.messageType = "error"
 		} else {
 			m.statusMessage = "Items exported to clipboard! Paste to Perplexity."
+			m.messageType = "success"
 		}
+		m.state = StateMessage
 	case msg.String() == "i":
 		applied, err := m.ImportTriageResultsFromClipboard()
 		if err != nil {
 			m.statusMessage = fmt.Sprintf("Import failed: %v", err)
+			m.messageType = "error"
 		} else {
 			m.statusMessage = fmt.Sprintf("Applied triage results to %d items", applied)
+			m.messageType = "success"
 		}
+		m.state = StateMessage
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
 	}
@@ -428,6 +442,11 @@ func (m Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.Back):
 		m.state = StateReviewing
 	}
+	return m, nil
+}
+
+func (m Model) handleMessageKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.state = StateReviewing
 	return m, nil
 }
 
@@ -546,6 +565,22 @@ func (m Model) doneView() string {
 	title := m.styles.Title.Render("Complete")
 	message := m.styles.Highlight.Render("All updates applied successfully!")
 	help := m.styles.Help.Render("Press q to quit")
+	return lipgloss.JoinVertical(lipgloss.Center, title, "", message, "", help)
+}
+
+func (m Model) messageView() string {
+	var title string
+	var message string
+
+	if m.messageType == "error" {
+		title = m.styles.Error.Render("Error")
+		message = m.styles.Error.Render(m.statusMessage)
+	} else {
+		title = m.styles.Title.Render("Success")
+		message = m.styles.Normal.Render(m.statusMessage)
+	}
+
+	help := m.styles.Help.Render("Press any key to continue")
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", message, "", help)
 }
 
