@@ -333,9 +333,7 @@ func (m Model) startTriaging() tea.Cmd {
 			return StateChangeMsg{State: StateTriaging}
 		},
 		func() tea.Msg {
-			// TODO: Implement actual LLM triage with Perplexity API
-			// For now, simulate processing delay
-			return StateChangeMsg{State: StateReviewing}
+			return ErrorMsg{Error: fmt.Errorf("LLM triage not yet implemented")}
 		},
 	)
 }
@@ -361,9 +359,8 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state = StateBatchEditing
 		}
 	case msg.String() == "p":
-		// Trigger LLM triage for all items
-		if m.cfg != nil && m.cfg.PerplexityAPIKey != "" {
-			return m, m.startTriaging()
+		return m, func() tea.Msg {
+			return ErrorMsg{Error: fmt.Errorf("LLM triage not yet implemented")}
 		}
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
