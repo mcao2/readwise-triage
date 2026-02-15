@@ -53,6 +53,8 @@ type Model struct {
 	styles Styles
 	keys   KeyMap
 
+	useLLMTriage bool
+
 	// Data
 	items         []Item
 	selectedIndex int
@@ -81,6 +83,7 @@ type Item struct {
 func NewModel() Model {
 	return Model{
 		state:         StateConfig,
+		useLLMTriage:  true,
 		styles:        DefaultStyles(),
 		keys:          DefaultKeyMap(),
 		selectedIndex: 0,
@@ -192,6 +195,8 @@ func (m Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, func() tea.Msg {
 			return StateChangeMsg{State: StateFetching}
 		}
+	case msg.String() == "m":
+		m.useLLMTriage = !m.useLLMTriage
 	}
 	return m, nil
 }
@@ -216,6 +221,26 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
 	}
+
+	if len(m.items) > 0 && m.cursor < len(m.items) {
+		switch msg.String() {
+		case "r":
+			m.items[m.cursor].Action = "read_now"
+		case "l":
+			m.items[m.cursor].Action = "later"
+		case "a":
+			m.items[m.cursor].Action = "archive"
+		case "d":
+			m.items[m.cursor].Action = "delete"
+		case "1":
+			m.items[m.cursor].Priority = "high"
+		case "2":
+			m.items[m.cursor].Priority = "medium"
+		case "3":
+			m.items[m.cursor].Priority = "low"
+		}
+	}
+
 	return m, nil
 }
 
@@ -241,14 +266,30 @@ func (m Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // View helpers
 func (m Model) configView() string {
 	title := m.styles.Title.Render("Readwise TUI")
-	help := m.styles.Help.Render("Press Enter to start fetching • q to quit")
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", help)
+
+	var modeText string
+	if m.useLLMTriage {
+		modeText = m.styles.Normal.Render("Mode: LLM Auto-Triage (Perplexity)")
+	} else {
+		modeText = m.styles.Normal.Render("Mode: Manual Triage")
+	}
+
+	help := m.styles.Help.Render("Enter: start • m: toggle mode • q: quit")
+	return lipgloss.JoinVertical(lipgloss.Center, title, "", modeText, "", help)
 }
 
 func (m Model) fetchingView() string {
 	title := m.styles.Title.Render("Fetching Inbox Items")
 	status := m.styles.Normal.Render("Loading from Readwise...")
-	help := m.styles.Help.Render("Press q to cancel")
+
+	var helpText string
+	if m.useLLMTriage {
+		helpText = "s: skip LLM triage (manual mode) • q: cancel"
+	} else {
+		helpText = "q: cancel"
+	}
+	help := m.styles.Help.Render(helpText)
+
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", status, "", help)
 }
 
@@ -284,7 +325,7 @@ func (m Model) reviewingView() string {
 	}
 
 	count := m.styles.Help.Render(fmt.Sprintf("Item %d of %d", m.cursor+1, len(m.items)))
-	help := m.styles.Help.Render("j/k: navigate • x: select • enter: edit • u: update • q: quit")
+	help := m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • enter: edit • q: quit")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, help)
 }
