@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os/exec"
+	"runtime"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,7 +20,6 @@ const (
 	StateFetching
 	StateTriaging
 	StateReviewing
-	StateEditing
 	StateConfirming
 	StateUpdating
 	StateDone
@@ -35,8 +36,6 @@ func (s State) String() string {
 		return "Triaging"
 	case StateReviewing:
 		return "Reviewing"
-	case StateEditing:
-		return "Editing"
 	case StateConfirming:
 		return "Confirming"
 	case StateUpdating:
@@ -203,8 +202,6 @@ func (m Model) View() string {
 		return m.triagingView()
 	case StateReviewing:
 		return m.reviewingView()
-	case StateEditing:
-		return m.editingView()
 	case StateConfirming:
 		return m.confirmingView()
 	case StateUpdating:
@@ -235,8 +232,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfigKeys(msg)
 	case StateReviewing:
 		return m.handleReviewingKeys(msg)
-	case StateEditing:
-		return m.handleEditingKeys(msg)
 	case StateConfirming:
 		return m.handleConfirmingKeys(msg)
 	case StateMessage:
@@ -356,8 +351,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case keyMatches(msg, m.keys.Enter):
 		if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
-			m.editingItem = item
-			m.state = StateEditing
+			_ = openURL(item.URL)
 		}
 		return m, nil
 	case msg.String() == "x" || msg.String() == " " || msg.String() == "space":
@@ -444,15 +438,6 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return m, nil
-}
-
-func (m *Model) handleEditingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case keyMatches(msg, m.keys.Back), keyMatches(msg, m.keys.Quit):
-		m.editingItem = nil
-		m.state = StateReviewing
-	}
 	return m, nil
 }
 
@@ -589,9 +574,27 @@ func (m Model) reviewingView() string {
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
 		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • enter: edit • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • enter: open url • q: quit")
 	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • enter: edit • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • enter: open url • q: quit")
+	}
+
+	var details string
+	if item := m.listView.GetItem(m.cursor); item != nil {
+		summary := item.Summary
+		if summary == "" {
+			summary = "No summary available"
+		}
+		summary = Truncate(summary, (m.width-10)*3)
+
+		urlText := m.styles.Help.Render("URL: " + item.URL)
+		summaryText := m.styles.Normal.Render("Summary: " + summary)
+		details = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(m.styles.Highlight.GetForeground()).
+			Padding(0, 1).
+			Width(m.width - 2).
+			Render(lipgloss.JoinVertical(lipgloss.Left, urlText, "", summaryText))
 	}
 
 	var statusText string
@@ -600,21 +603,9 @@ func (m Model) reviewingView() string {
 	}
 
 	if statusText != "" {
-		return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, "", statusText, help)
+		return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, "", details, "", statusText, help)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, help)
-}
-
-func (m Model) editingView() string {
-	if m.editingItem == nil {
-		return "No item selected"
-	}
-
-	title := m.styles.Title.Render("Edit Item")
-	itemTitle := m.styles.Highlight.Render(m.editingItem.Title)
-	help := m.styles.Help.Render("Press ESC to go back")
-
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", itemTitle, "", help)
+	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, "", details, help)
 }
 
 func (m Model) confirmingView() string {
@@ -661,4 +652,22 @@ func keyMatches(msg tea.KeyMsg, target key.Binding) bool {
 		}
 	}
 	return false
+}
+
+func openURL(url string) error {
+	var cmd string
+	var args []string
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "rundll32"
+		args = []string{"url.dll,FileProtocolHandler", url}
+	case "darwin":
+		cmd = "open"
+		args = []string{url}
+	default:
+		cmd = "xdg-open"
+		args = []string{url}
+	}
+	return exec.Command(cmd, args...).Start()
 }

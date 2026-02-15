@@ -54,16 +54,16 @@ func (lv *ListView) updateRows() {
 
 		actionText := getActionText(item.Action)
 		priorityText := getPriorityText(item.Priority)
-		category := truncate(item.Category, 8)
-		info := fmt.Sprintf("%s | %dw", truncate(item.ReadingTime, 6), item.WordCount)
-		title := truncate(item.Title, lv.width-75)
+		category := Truncate(item.Category, 8)
+		info := fmt.Sprintf("%s | %dw", Truncate(item.ReadingTime, 6), item.WordCount)
+		title := Truncate(item.Title, lv.width-75)
 
 		rows[i] = table.Row{selected, actionText, priorityText, category, info, title}
 	}
 	lv.table.SetRows(rows)
 }
 
-func truncate(s string, maxLen int) string {
+func Truncate(s string, maxLen int) string {
 	if len(s) > maxLen {
 		return s[:maxLen-3] + "..."
 	}
