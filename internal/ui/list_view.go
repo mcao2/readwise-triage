@@ -95,6 +95,8 @@ func getActionText(action string) string {
 		return "📁 Archive "
 	case "delete":
 		return "❌ Delete  "
+	case "needs_review":
+		return "👁️  Review  "
 	default:
 		return "❓ New     "
 	}
@@ -191,5 +193,5 @@ func (lv ListView) Update(msg tea.Msg) (ListView, tea.Cmd) {
 }
 
 func (lv ListView) helpView() string {
-	return "j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • p: AI triage • enter: edit • q: quit"
+	return "j/k: navigate • x: select • r/l/a/d/n: action • 1/2/3: priority • p: AI triage • enter: edit • q: quit"
 }

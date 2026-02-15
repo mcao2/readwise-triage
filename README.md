@@ -30,6 +30,7 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 | `l` | Review | Set action: **Later** (moves to Later) |
 | `a` | Review | Set action: **Archive** (moves to Archive) |
 | `d` | Review | Set action: **Delete** (moves to Archive) |
+| `n` | Review | Set action: **Needs Review** (flags for human review) |
 | `1` / `2` / `3` | Review | Set priority: **High** / **Medium** / **Low** |
 | `e` | Review | **Export** items to clipboard (Selected items if active, else untriaged) |
 | `i` | Review | **Import** triage results from clipboard |

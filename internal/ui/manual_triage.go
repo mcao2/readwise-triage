@@ -13,10 +13,11 @@ import (
 
 // Valid actions for triage decisions
 var validActions = map[string]bool{
-	"read_now": true,
-	"later":    true,
-	"archive":  true,
-	"delete":   true,
+	"read_now":     true,
+	"later":        true,
+	"archive":      true,
+	"delete":       true,
+	"needs_review": true,
 }
 
 // Valid priorities for triage decisions
@@ -216,7 +217,7 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 		}
 
 		if !validActions[result.TriageDecision.Action] {
-			errors = append(errors, fmt.Sprintf("result %d (%s): invalid action '%s' (must be one of: read_now, later, archive)", i, displayTitle, result.TriageDecision.Action))
+			errors = append(errors, fmt.Sprintf("result %d (%s): invalid action '%s' (must be one of: read_now, later, archive, delete, needs_review)", i, displayTitle, result.TriageDecision.Action))
 			continue
 		}
 
@@ -236,6 +237,11 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 		// Apply the triage decision
 		item.Action = result.TriageDecision.Action
 		item.Priority = result.TriageDecision.Priority
+
+		// Apply suggested tags if provided
+		if len(result.MetadataEnhancement.SuggestedTags) > 0 {
+			item.Tags = result.MetadataEnhancement.SuggestedTags
+		}
 
 		// Save to triage store
 		if m.triageStore != nil {

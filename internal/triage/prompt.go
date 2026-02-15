@@ -19,7 +19,7 @@ const PromptTemplate = `You are my personal reading assistant. I will give you a
   "url": "url",
   
   "triage_decision": {
-    "action": "delete|archive|later|read_now",
+    "action": "delete|archive|later|read_now|needs_review",
     "priority": "high|medium|low",
     "reason": "why this classification (2-3 sentences)"
   },
@@ -75,16 +75,23 @@ const PromptTemplate = `You are my personal reading assistant. I will give you a
    - Highly actionable (clear steps/config/code)
    - From credible sources
    - Can solve problems I might currently face
-   
+
 2. **action = "later"**: Valuable but not urgent, or requires a full time block
 
 3. **action = "archive"**: Might be useful later but don't need deep reading now
 
 4. **action = "delete"**: Marketing content, duplicates, outdated info, clearly irrelevant
 
-5. **reading_guide** "read_for" must be specific questions, not vague like "understand the core idea"
+5. **action = "needs_review"**: When you CANNOT confidently classify an item. Use this when:
+   - Content is paywalled or summary is insufficient to judge
+   - Topic is outside my stated reading goals and you're uncertain of relevance
+   - Language or context is ambiguous
+   - You're otherwise uncertain about the classification
+   - **IMPORTANT**: Do NOT guess — flag it for human review with a clear explanation in the reason field
 
-6. **action_items** must be actionable, e.g.:
+6. **reading_guide** "read_for" must be specific questions, not vague like "understand the core idea"
+
+7. **action_items** must be actionable, e.g.:
    - ✅ "Follow the steps in the article to configure VS Code extension X"
    - ✅ "Add the formula from section 3 to my Notion template"
    - ❌ "Deeply reflect on the article's viewpoints"

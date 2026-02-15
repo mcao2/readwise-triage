@@ -85,6 +85,7 @@ type Item struct {
 	Source      string
 	WordCount   int
 	ReadingTime string
+	Tags        []string
 }
 
 func NewModel() *Model {
@@ -376,10 +377,17 @@ func (m *Model) startUpdating() tea.Cmd {
 				update.Location = "later"
 			case "archive", "delete":
 				update.Location = "archive"
+			case "needs_review":
+				update.Tags = []string{"needs_review"}
 			}
 
 			if item.Priority != "" {
 				update.Tags = append(update.Tags, "priority:"+item.Priority)
+			}
+
+			// Add LLM-suggested tags
+			if len(item.Tags) > 0 {
+				update.Tags = append(update.Tags, item.Tags...)
 			}
 
 			updates = append(updates, update)
@@ -514,6 +522,8 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.applyBatchAction("archive")
 		case "d":
 			m.applyBatchAction("delete")
+		case "n":
+			m.applyBatchAction("needs_review")
 		case "1":
 			m.applyBatchPriority("high")
 		case "2":
@@ -540,6 +550,10 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.listView.SetItems(m.items)
 		case "d":
 			item.Action = "delete"
+			m.saveTriage(item.ID, item.Action, item.Priority)
+			m.listView.SetItems(m.items)
+		case "n":
+			item.Action = "needs_review"
 			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "1":
@@ -699,9 +713,9 @@ func (m *Model) reviewingView() string {
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
 		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • f: more • R: refresh • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d/n: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • f: more • R: refresh • u: update • q: quit")
 	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • f: more • R: refresh • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d/n: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • f: more • R: refresh • u: update • q: quit")
 	}
 
 	var statusText string
