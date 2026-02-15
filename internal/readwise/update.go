@@ -45,7 +45,7 @@ func (c *Client) UpdateDocument(update UpdateRequest) error {
 		return fmt.Errorf("failed to marshal update: %w", err)
 	}
 
-	req, err := http.NewRequest("PATCH", fmt.Sprintf("%s/update/", c.baseURL), bytes.NewReader(body))
+	req, err := http.NewRequest("PATCH", fmt.Sprintf("%s/update/%s/", c.baseURL, update.DocumentID), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (c *Client) BatchUpdate(updates []UpdateRequest, progressChan chan<- BatchU
 		Errors: make([]error, 0),
 	}
 
-	rateLimiter := time.NewTicker(100 * time.Millisecond) // 10 req/sec
+	rateLimiter := time.NewTicker(2 * time.Second)
 	defer rateLimiter.Stop()
 
 	for i, update := range updates {
