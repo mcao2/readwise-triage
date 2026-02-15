@@ -17,6 +17,7 @@ const (
 	StateTriaging
 	StateReviewing
 	StateEditing
+	StateBatchEditing
 	StateConfirming
 	StateUpdating
 	StateDone
@@ -34,6 +35,8 @@ func (s State) String() string {
 		return "Reviewing"
 	case StateEditing:
 		return "Editing"
+	case StateBatchEditing:
+		return "Batch Editing"
 	case StateConfirming:
 		return "Confirming"
 	case StateUpdating:
@@ -141,6 +144,8 @@ func (m Model) View() string {
 		return m.reviewingView()
 	case StateEditing:
 		return m.editingView()
+	case StateBatchEditing:
+		return m.batchEditingView()
 	case StateConfirming:
 		return m.confirmingView()
 	case StateUpdating:
@@ -171,6 +176,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleReviewingKeys(msg)
 	case StateEditing:
 		return m.handleEditingKeys(msg)
+	case StateBatchEditing:
+		return m.handleBatchEditingKeys(msg)
 	case StateConfirming:
 		return m.handleConfirmingKeys(msg)
 	}
@@ -223,6 +230,10 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.Select):
 		m.listView.ToggleSelection()
 		m.cursor = m.listView.Cursor()
+	case msg.String() == "b":
+		if len(m.listView.GetSelected()) > 0 {
+			m.state = StateBatchEditing
+		}
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
 	}
@@ -260,6 +271,14 @@ func (m Model) handleEditingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Back), keyMatches(msg, m.keys.Quit):
 		m.editingItem = nil
+		m.state = StateReviewing
+	}
+	return m, nil
+}
+
+func (m Model) handleBatchEditingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case keyMatches(msg, m.keys.Back), keyMatches(msg, m.keys.Quit):
 		m.state = StateReviewing
 	}
 	return m, nil
@@ -323,7 +342,7 @@ func (m Model) reviewingView() string {
 	}
 
 	count := m.styles.Help.Render(fmt.Sprintf("Item %d of %d", m.cursor+1, len(m.items)))
-	help := m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • enter: edit • q: quit")
+	help := m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • enter: edit • b: batch • q: quit")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, help)
 }
@@ -338,6 +357,15 @@ func (m Model) editingView() string {
 	help := m.styles.Help.Render("Press ESC to go back")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", itemTitle, "", help)
+}
+
+func (m Model) batchEditingView() string {
+	selected := m.listView.GetSelected()
+	title := m.styles.Title.Render("Batch Edit")
+	count := m.styles.Normal.Render(fmt.Sprintf("Editing %d selected items", len(selected)))
+	help := m.styles.Help.Render("Press ESC to go back")
+
+	return lipgloss.JoinVertical(lipgloss.Left, title, "", count, "", help)
 }
 
 func (m Model) confirmingView() string {
