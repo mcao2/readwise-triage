@@ -410,8 +410,11 @@ func (m Model) configView() string {
 		modeText = m.styles.Normal.Render("Mode: Manual Triage")
 	}
 
-	themeNames := GetThemeNames()
-	themeText := m.styles.Normal.Render("Theme: " + Themes[themeNames[m.themeIndex]].Name)
+	themeName := m.cfg.Theme
+	if themeName == "" {
+		themeName = "default"
+	}
+	themeText := m.styles.Normal.Render("Theme: " + themeName)
 
 	help := m.styles.Help.Render("Enter: start • m: toggle mode • t: change theme • q: quit")
 

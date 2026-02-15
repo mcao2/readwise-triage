@@ -133,9 +133,6 @@ use_llm_triage: true
 	return os.WriteFile(configPath, []byte(example), 0600)
 }
 
-// Save writes the configuration to the config file
-// Only saves non-sensitive settings (theme, mode preferences)
-// Does NOT save tokens (those should be in env vars)
 func (c *Config) Save() error {
 	configDir, err := EnsureConfigDir()
 	if err != nil {
@@ -144,18 +141,23 @@ func (c *Config) Save() error {
 
 	configPath := filepath.Join(configDir, "config.yaml")
 
-	// Create config struct with only non-sensitive data
-	safeConfig := &Config{
-		DefaultDaysAgo: c.DefaultDaysAgo,
-		Theme:          c.Theme,
-		UseLLMTriage:   c.UseLLMTriage,
+	// Load existing config to preserve fields like tokens
+	existing := &Config{DefaultDaysAgo: 7}
+	if data, err := os.ReadFile(configPath); err == nil {
+		yaml.Unmarshal(data, existing)
 	}
 
-	data, err := yaml.Marshal(safeConfig)
+	// Update only the fields we manage (not tokens from env vars)
+	existing.DefaultDaysAgo = c.DefaultDaysAgo
+	existing.Theme = c.Theme
+	existing.UseLLMTriage = c.UseLLMTriage
+	// Note: We preserve existing.ReadwiseToken and existing.PerplexityAPIKey
+
+	data, err := yaml.Marshal(existing)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	header := []byte("# Readwise Triage Configuration\n# Note: Sensitive values (tokens) should be set via environment variables\n\n")
+	header := []byte("# Readwise Triage Configuration\n# Note: Sensitive values (tokens) can be set via environment variables or this file\n\n")
 	return os.WriteFile(configPath, append(header, data...), 0600)
 }
