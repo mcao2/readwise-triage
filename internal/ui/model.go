@@ -428,6 +428,10 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case keyMatches(msg, m.keys.FetchMore):
 		m.fetchLookback += 7
+		if m.cfg != nil {
+			m.cfg.DefaultDaysAgo = m.fetchLookback
+			_ = m.cfg.Save()
+		}
 		return m, m.startFetching()
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
