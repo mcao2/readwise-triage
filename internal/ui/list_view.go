@@ -320,7 +320,7 @@ func (lv ListView) View() string {
 		}
 		style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
 		cell := style.Render(runewidth.Truncate(col.Title, col.Width, "…"))
-		headerCells = append(headerCells, lv.headerStyle.Render(cell))
+		headerCells = append(headerCells, lv.headerStyle.Render(lv.cellStyle.Render(cell)))
 	}
 	header := lipgloss.JoinHorizontal(lipgloss.Top, headerCells...)
 
