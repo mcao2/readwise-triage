@@ -43,3 +43,19 @@ config.yml
 # Logs
 *.log
 debug.log
+
+# Data files (user's personal data)
+*.json
+!go.mod
+!go.sum
+
+# Old Python implementation (removed)
+*.py
+prompts.md
+
+# Development metadata
+.sisyphus/
+
+# Build artifacts
+readwise-tui
+dist/
