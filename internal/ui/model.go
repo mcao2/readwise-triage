@@ -790,7 +790,7 @@ func (m *Model) reviewingView() string {
 			headerGap = strings.Repeat(" ", gap)
 		}
 	}
-	header := m.styles.HeaderBar.Width(m.width).Render(headerLeft + headerGap + countText)
+	header := m.styles.HeaderBar.Width(m.width - 1).Render(headerLeft + headerGap + countText)
 
 	// Table
 	var list string
@@ -805,7 +805,11 @@ func (m *Model) reviewingView() string {
 	if len(m.items) > 0 {
 		detailContent := m.listView.DetailView(m.width, m.styles)
 		if detailContent != "" {
-			divider := m.styles.HelpSep.Render(strings.Repeat("─", m.width))
+			divW := m.width - 1
+			if divW < 1 {
+				divW = 1
+			}
+			divider := m.styles.HelpSep.Render(strings.Repeat("─", divW))
 			detail = divider + "\n" + detailContent
 		}
 	}
@@ -833,7 +837,7 @@ func (m *Model) reviewingView() string {
 	}
 	parts = append(parts, footer)
 
-	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	content := strings.Join(parts, "\n")
 
 	// Pad output to exactly m.height lines so the alternate screen buffer
 	// repaints cleanly and doesn't leave stale content from previous frames.
@@ -967,7 +971,7 @@ func (m *Model) renderReviewFooter() string {
 		{"q", "quit"},
 	}
 
-	footer := m.styles.FooterBar.Width(m.width).Render(
+	footer := m.styles.FooterBar.Width(m.width - 1).Render(
 		m.renderHelpLine(line1) + "\n" + m.renderHelpLine(line2),
 	)
 	return footer
@@ -1020,7 +1024,7 @@ func (m *Model) renderFullHelp() string {
 		}
 	}
 
-	return m.styles.FooterBar.Width(m.width).Render(strings.Join(lines, "\n"))
+	return m.styles.FooterBar.Width(m.width - 1).Render(strings.Join(lines, "\n"))
 }
 
 func keyMatches(msg tea.KeyMsg, target key.Binding) bool {
