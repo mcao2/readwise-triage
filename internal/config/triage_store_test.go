@@ -22,8 +22,8 @@ func TestTriageStore(t *testing.T) {
 		t.Errorf("expected version 1.0, got %s", store.Version)
 	}
 
-	store.SetItem("item1", "read_now", "high", "manual")
-	store.SetItem("item2", "later", "medium", "llm")
+	store.SetItem("item1", "read_now", "high", "manual", nil)
+	store.SetItem("item2", "later", "medium", "llm", nil)
 
 	if !store.HasTriaged("item1") {
 		t.Error("expected item1 to be triaged")
@@ -340,7 +340,7 @@ func TestEnsureConfigDir(t *testing.T) {
 func TestTriageStoreSetItemNilMap(t *testing.T) {
 	store := &TriageStore{}
 	// Items is nil — SetItem should initialize it
-	store.SetItem("1", "read_now", "high", "manual")
+	store.SetItem("1", "read_now", "high", "manual", nil)
 	if store.Items == nil {
 		t.Fatal("expected Items to be initialized")
 	}
@@ -400,7 +400,7 @@ func TestTriageStoreSaveUpdatesTimestamp(t *testing.T) {
 		Version: "1.0",
 		Items:   make(map[string]TriageEntry),
 	}
-	store.SetItem("1", "read_now", "high", "manual")
+	store.SetItem("1", "read_now", "high", "manual", nil)
 
 	if err := store.Save(); err != nil {
 		t.Fatalf("Save failed: %v", err)

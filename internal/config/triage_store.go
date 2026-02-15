@@ -15,10 +15,11 @@ type TriageStore struct {
 }
 
 type TriageEntry struct {
-	Action    string `json:"action"`
-	Priority  string `json:"priority"`
-	TriagedAt string `json:"triaged_at"`
-	Source    string `json:"source"` // "manual", "llm"
+	Action    string   `json:"action"`
+	Priority  string   `json:"priority"`
+	Tags      []string `json:"tags,omitempty"`
+	TriagedAt string   `json:"triaged_at"`
+	Source    string   `json:"source"` // "manual", "llm"
 }
 
 func GetTriageStorePath() string {
@@ -71,13 +72,14 @@ func (s *TriageStore) Save() error {
 	return os.WriteFile(path, data, 0600)
 }
 
-func (s *TriageStore) SetItem(id, action, priority, source string) {
+func (s *TriageStore) SetItem(id, action, priority, source string, tags []string) {
 	if s.Items == nil {
 		s.Items = make(map[string]TriageEntry)
 	}
 	s.Items[id] = TriageEntry{
 		Action:    action,
 		Priority:  priority,
+		Tags:      tags,
 		TriagedAt: time.Now().Format(time.RFC3339),
 		Source:    source,
 	}

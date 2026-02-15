@@ -596,7 +596,7 @@ func (m *Model) applyBatchAction(action string) {
 	for _, idx := range selected {
 		if idx >= 0 && idx < len(m.items) {
 			m.items[idx].Action = action
-			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority)
+			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority, m.items[idx].Tags)
 		}
 	}
 	m.listView.SetItems(m.items)
@@ -607,7 +607,7 @@ func (m *Model) applyBatchPriority(priority string) {
 	for _, idx := range selected {
 		if idx >= 0 && idx < len(m.items) {
 			m.items[idx].Priority = priority
-			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority)
+			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority, m.items[idx].Tags)
 		}
 	}
 	m.listView.SetItems(m.items)
@@ -615,13 +615,13 @@ func (m *Model) applyBatchPriority(priority string) {
 
 func (m *Model) setItemAction(item *Item, action string) {
 	item.Action = action
-	m.saveTriage(item.ID, item.Action, item.Priority)
+	m.saveTriage(item.ID, item.Action, item.Priority, item.Tags)
 	m.listView.SetItems(m.items)
 }
 
 func (m *Model) setItemPriority(item *Item, priority string) {
 	item.Priority = priority
-	m.saveTriage(item.ID, item.Action, item.Priority)
+	m.saveTriage(item.ID, item.Action, item.Priority, item.Tags)
 	m.listView.SetItems(m.items)
 }
 
@@ -655,23 +655,24 @@ func (m *Model) applySavedTriages() {
 		if entry, ok := m.triageStore.GetItem(m.items[i].ID); ok {
 			m.items[i].Action = entry.Action
 			m.items[i].Priority = entry.Priority
+			m.items[i].Tags = entry.Tags
 		}
 	}
 }
 
-func (m *Model) saveTriage(id, action, priority string) {
+func (m *Model) saveTriage(id, action, priority string, tags []string) {
 	if m.triageStore == nil {
 		return
 	}
-	m.triageStore.SetItem(id, action, priority, "manual")
+	m.triageStore.SetItem(id, action, priority, "manual", tags)
 	_ = m.triageStore.Save()
 }
 
-func (m *Model) saveLLMTriage(id, action, priority string) {
+func (m *Model) saveLLMTriage(id, action, priority string, tags []string) {
 	if m.triageStore == nil {
 		return
 	}
-	m.triageStore.SetItem(id, action, priority, "llm")
+	m.triageStore.SetItem(id, action, priority, "llm", tags)
 	_ = m.triageStore.Save()
 }
 

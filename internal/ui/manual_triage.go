@@ -263,7 +263,7 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 
 		// Save to triage store
 		if m.triageStore != nil {
-			m.triageStore.SetItem(item.ID, item.Action, item.Priority, "llm")
+			m.triageStore.SetItem(item.ID, item.Action, item.Priority, "llm", item.Tags)
 		}
 
 		applied++
