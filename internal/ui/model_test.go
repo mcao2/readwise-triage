@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mcao2/readwise-triage/internal/readwise"
 )
 
 func TestMain(m *testing.M) {
@@ -311,6 +312,43 @@ func TestUpdateWithSelection(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
 	if cmd == nil {
 		t.Fatal("expected command from Update")
+	}
+}
+
+func TestProgressUpdateLoop(t *testing.T) {
+	m := NewModel()
+	ch := make(chan readwise.BatchUpdateProgress, 2)
+
+	cmd := m.waitForUpdateProgress(ch, 0, 0)
+
+	ch <- readwise.BatchUpdateProgress{Current: 1, Total: 2, ItemID: "1", Success: true}
+
+	msg := cmd()
+	progressMsg, ok := msg.(ProgressMsg)
+	if !ok {
+		t.Fatalf("expected ProgressMsg, got %T", msg)
+	}
+	if progressMsg.Progress != 0.5 {
+		t.Errorf("expected progress 0.5, got %f", progressMsg.Progress)
+	}
+
+	nextCmd := m.waitForUpdateProgress(progressMsg.Channel, progressMsg.Success, progressMsg.Failed)
+	ch <- readwise.BatchUpdateProgress{Current: 2, Total: 2, ItemID: "2", Success: true}
+
+	msg2 := nextCmd()
+	progressMsg2, ok := msg2.(ProgressMsg)
+	if !ok {
+		t.Fatalf("expected ProgressMsg, got %T", msg2)
+	}
+	if progressMsg2.Progress != 1.0 {
+		t.Errorf("expected progress 1.0, got %f", progressMsg2.Progress)
+	}
+
+	close(ch)
+	finishCmd := m.waitForUpdateProgress(progressMsg2.Channel, progressMsg2.Success, progressMsg2.Failed)
+	finishMsg := finishCmd()
+	if _, ok := finishMsg.(UpdateFinishedMsg); !ok {
+		t.Fatalf("expected UpdateFinishedMsg, got %T", finishMsg)
 	}
 }
 

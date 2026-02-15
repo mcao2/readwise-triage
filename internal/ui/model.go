@@ -177,6 +177,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ProgressMsg:
 		m.progress = msg.Progress
 		m.statusMessage = msg.Message
+		return m, m.waitForUpdateProgress(msg.Channel, msg.Success, msg.Failed)
 
 	case ItemsLoadedMsg:
 		m.items = msg.Items
@@ -254,6 +255,9 @@ type StateChangeMsg struct {
 type ProgressMsg struct {
 	Progress float64
 	Message  string
+	Success  int
+	Failed   int
+	Channel  chan readwise.BatchUpdateProgress
 }
 
 type ItemsLoadedMsg struct {
@@ -286,127 +290,148 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) startFetching() tea.Cmd {
-	return tea.Sequence(
-		func() tea.Msg {
-			return StateChangeMsg{State: StateFetching}
-		},
-		func() tea.Msg {
-			if m.cfg == nil || m.cfg.ReadwiseToken == "" {
-				return ErrorMsg{Error: fmt.Errorf("READWISE_TOKEN not configured. Set it via environment variable or config file")}
-			}
+	m.state = StateFetching
+	m.statusMessage = "Loading from Readwise..."
 
-			client, err := readwise.NewClient(m.cfg.ReadwiseToken)
-			if err != nil {
-				return ErrorMsg{Error: err}
-			}
+	return func() tea.Msg {
+		if m.cfg == nil || m.cfg.ReadwiseToken == "" {
+			return ErrorMsg{Error: fmt.Errorf("READWISE_TOKEN not configured. Set it via environment variable or config file")}
+		}
 
-			opts := readwise.FetchOptions{
-				DaysAgo:  m.fetchLookback,
-				Location: "new",
-			}
-			items, err := client.GetInboxItems(opts)
-			if err != nil {
-				return ErrorMsg{Error: err}
-			}
+		client, err := readwise.NewClient(m.cfg.ReadwiseToken)
+		if err != nil {
+			return ErrorMsg{Error: err}
+		}
 
-			uiItems := make([]Item, len(items))
-			for i, item := range items {
-				uiItems[i] = Item{
-					ID:          item.ID,
-					Title:       item.Title,
-					Action:      "",
-					Priority:    "",
-					URL:         item.URL,
-					Summary:     item.Summary,
-					Category:    item.Category,
-					Source:      item.Source,
-					WordCount:   item.WordCount,
-					ReadingTime: item.ReadingTime,
-				}
-			}
+		opts := readwise.FetchOptions{
+			DaysAgo:  m.fetchLookback,
+			Location: "new",
+		}
+		items, err := client.GetInboxItems(opts)
+		if err != nil {
+			return ErrorMsg{Error: err}
+		}
 
-			return ItemsLoadedMsg{Items: uiItems}
-		},
-	)
+		uiItems := make([]Item, len(items))
+		for i, item := range items {
+			uiItems[i] = Item{
+				ID:          item.ID,
+				Title:       item.Title,
+				Action:      "",
+				Priority:    "",
+				URL:         item.URL,
+				Summary:     item.Summary,
+				Category:    item.Category,
+				Source:      item.Source,
+				WordCount:   item.WordCount,
+				ReadingTime: item.ReadingTime,
+			}
+		}
+
+		return ItemsLoadedMsg{Items: uiItems}
+	}
 }
 
 func (m *Model) startTriaging() tea.Cmd {
-	return tea.Sequence(
-		func() tea.Msg {
-			return StateChangeMsg{State: StateTriaging}
-		},
-		func() tea.Msg {
-			return ErrorMsg{Error: fmt.Errorf("LLM triage not yet implemented")}
-		},
-	)
+	m.state = StateTriaging
+	return func() tea.Msg {
+		return ErrorMsg{Error: fmt.Errorf("LLM triage not yet implemented")}
+	}
 }
 
 func (m *Model) startUpdating() tea.Cmd {
-	return tea.Sequence(
-		func() tea.Msg {
-			return StateChangeMsg{State: StateUpdating}
-		},
-		func() tea.Msg {
-			if m.cfg == nil || m.cfg.ReadwiseToken == "" {
-				return ErrorMsg{Error: fmt.Errorf("READWISE_TOKEN not configured")}
-			}
+	if m.cfg == nil || m.cfg.ReadwiseToken == "" {
+		return func() tea.Msg {
+			return ErrorMsg{Error: fmt.Errorf("READWISE_TOKEN not configured")}
+		}
+	}
 
-			client, err := readwise.NewClient(m.cfg.ReadwiseToken)
-			if err != nil {
-				return ErrorMsg{Error: err}
-			}
+	selectedIndices := m.listView.GetSelected()
+	useSelection := len(selectedIndices) > 0
 
-			selectedIndices := m.listView.GetSelected()
-			useSelection := len(selectedIndices) > 0
-
-			var updates []readwise.UpdateRequest
-			for i, item := range m.items {
-				if useSelection {
-					isSelected := false
-					for _, idx := range selectedIndices {
-						if idx == i {
-							isSelected = true
-							break
-						}
-					}
-					if !isSelected {
-						continue
-					}
-				}
-
-				if item.Action != "" {
-					update := readwise.UpdateRequest{
-						DocumentID: item.ID,
-					}
-
-					switch item.Action {
-					case "read_now":
-						update.Tags = []string{"read_now"}
-					case "later":
-						update.Location = "later"
-					case "archive", "delete":
-						update.Location = "archive"
-					}
-
-					if item.Priority != "" {
-						update.Tags = append(update.Tags, "priority:"+item.Priority)
-					}
-
-					updates = append(updates, update)
+	var updates []readwise.UpdateRequest
+	for i, item := range m.items {
+		if useSelection {
+			isSelected := false
+			for _, idx := range selectedIndices {
+				if idx == i {
+					isSelected = true
+					break
 				}
 			}
+			if !isSelected {
+				continue
+			}
+		}
 
-			if len(updates) == 0 {
-				return UpdateFinishedMsg{Success: 0, Failed: 0}
+		if item.Action != "" {
+			update := readwise.UpdateRequest{
+				DocumentID: item.ID,
 			}
 
-			res, _ := client.BatchUpdate(updates, nil)
-			return UpdateFinishedMsg{
-				Success: res.Success,
-				Failed:  res.Failed,
+			switch item.Action {
+			case "read_now":
+				update.Tags = []string{"read_now"}
+			case "later":
+				update.Location = "later"
+			case "archive", "delete":
+				update.Location = "archive"
 			}
-		},
-	)
+
+			if item.Priority != "" {
+				update.Tags = append(update.Tags, "priority:"+item.Priority)
+			}
+
+			updates = append(updates, update)
+		}
+	}
+
+	if len(updates) == 0 {
+		return func() tea.Msg {
+			return UpdateFinishedMsg{Success: 0, Failed: 0}
+		}
+	}
+
+	m.state = StateUpdating
+	m.progress = 0
+	m.statusMessage = "Preparing updates..."
+
+	progressChan := make(chan readwise.BatchUpdateProgress)
+
+	go func() {
+		client, err := readwise.NewClient(m.cfg.ReadwiseToken)
+		if err == nil {
+			client.BatchUpdate(updates, progressChan)
+		}
+		close(progressChan)
+	}()
+
+	return m.waitForUpdateProgress(progressChan, 0, 0)
+}
+
+func (m *Model) waitForUpdateProgress(ch chan readwise.BatchUpdateProgress, success, failed int) tea.Cmd {
+	return func() tea.Msg {
+		progress, ok := <-ch
+		if !ok {
+			return UpdateFinishedMsg{Success: success, Failed: failed}
+		}
+
+		newSuccess := success
+		newFailed := failed
+		if progress.Success {
+			newSuccess++
+		} else {
+			newFailed++
+		}
+
+		return ProgressMsg{
+			Progress: float64(progress.Current) / float64(progress.Total),
+			Message:  fmt.Sprintf("Updated %d/%d items", progress.Current, progress.Total),
+			Success:  newSuccess,
+			Failed:   newFailed,
+			Channel:  ch,
+		}
+	}
 }
 
 func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
