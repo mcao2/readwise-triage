@@ -21,6 +21,7 @@ const (
 type PerplexityClient struct {
 	apiKey     string
 	model      string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -41,6 +42,13 @@ func WithModel(model string) PerplexityOption {
 	}
 }
 
+// WithPerplexityBaseURL sets a custom base URL (for testing)
+func WithPerplexityBaseURL(url string) PerplexityOption {
+	return func(c *PerplexityClient) {
+		c.baseURL = url
+	}
+}
+
 // NewPerplexityClient creates a new Perplexity API client
 func NewPerplexityClient(apiKey string, opts ...PerplexityOption) (*PerplexityClient, error) {
 	if apiKey == "" {
@@ -53,6 +61,7 @@ func NewPerplexityClient(apiKey string, opts ...PerplexityOption) (*PerplexityCl
 	client := &PerplexityClient{
 		apiKey:     apiKey,
 		model:      defaultModel,
+		baseURL:    perplexityAPIURL,
 		httpClient: &http.Client{Timeout: 120 * time.Second},
 	}
 
@@ -121,7 +130,7 @@ func (c *PerplexityClient) TriageItems(itemsJSON string) ([]Result, error) {
 }
 
 func (c *PerplexityClient) doRequest(body []byte) ([]Result, error) {
-	req, err := http.NewRequest("POST", perplexityAPIURL, bytes.NewReader(body))
+	req, err := http.NewRequest("POST", c.baseURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

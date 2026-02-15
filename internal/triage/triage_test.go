@@ -1,6 +1,9 @@
 package triage
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -287,4 +290,253 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestPerplexityClientOptions(t *testing.T) {
+	client, err := NewPerplexityClient("test-key", WithModel("custom-model"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client.model != "custom-model" {
+		t.Errorf("expected model 'custom-model', got %q", client.model)
+	}
+
+	customHTTP := &http.Client{}
+	client2, err := NewPerplexityClient("test-key", WithPerplexityHTTPClient(customHTTP))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client2.httpClient != customHTTP {
+		t.Error("expected custom HTTP client to be set")
+	}
+
+	client3, err := NewPerplexityClient("test-key", WithPerplexityBaseURL("http://custom"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client3.baseURL != "http://custom" {
+		t.Errorf("expected baseURL 'http://custom', got %q", client3.baseURL)
+	}
+}
+
+func TestTriageItemsSuccess(t *testing.T) {
+	triageResult := []Result{
+		{
+			ID:    "item1",
+			Title: "Test Article",
+			URL:   "https://example.com",
+			TriageDecision: TriageDecision{
+				Action:   "read_now",
+				Priority: "high",
+				Reason:   "Important",
+			},
+		},
+	}
+	resultJSON, _ := json.Marshal(triageResult)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify auth header
+		if r.Header.Get("Authorization") != "Bearer test-key" {
+			t.Errorf("expected Bearer auth, got %q", r.Header.Get("Authorization"))
+		}
+		resp := ChatResponse{
+			Choices: []struct {
+				Message ChatMessage `json:"message"`
+			}{
+				{Message: ChatMessage{Role: "assistant", Content: string(resultJSON)}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client, _ := NewPerplexityClient("test-key", WithPerplexityBaseURL(server.URL))
+	results, err := client.TriageItems(`[{"id":"item1","title":"Test"}]`)
+	if err != nil {
+		t.Fatalf("TriageItems failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
+	}
+	if results[0].ID != "item1" {
+		t.Errorf("expected id 'item1', got %q", results[0].ID)
+	}
+}
+
+func TestTriageItemsAPIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("internal error"))
+	}))
+	defer server.Close()
+
+	client, _ := NewPerplexityClient("test-key", WithPerplexityBaseURL(server.URL))
+	_, err := client.TriageItems(`[{"id":"1","title":"Test"}]`)
+	if err == nil {
+		t.Error("expected error on 500 response")
+	}
+	if !contains(err.Error(), "retries") {
+		t.Errorf("expected retry error, got %q", err.Error())
+	}
+}
+
+func TestTriageItemsEmptyChoices(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := ChatResponse{Choices: nil}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client, _ := NewPerplexityClient("test-key", WithPerplexityBaseURL(server.URL))
+	_, err := client.TriageItems(`[{"id":"1","title":"Test"}]`)
+	if err == nil {
+		t.Error("expected error on empty choices")
+	}
+}
+
+func TestTriageItemsAPIErrorField(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := `{"choices":[],"error":{"message":"rate limited","type":"rate_limit"}}`
+		w.Write([]byte(resp))
+	}))
+	defer server.Close()
+
+	client, _ := NewPerplexityClient("test-key", WithPerplexityBaseURL(server.URL))
+	_, err := client.TriageItems(`[{"id":"1","title":"Test"}]`)
+	if err == nil {
+		t.Error("expected error on API error field")
+	}
+}
+
+func TestTriageItemsInvalidResponseJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+
+	client, _ := NewPerplexityClient("test-key", WithPerplexityBaseURL(server.URL))
+	_, err := client.TriageItems(`[{"id":"1","title":"Test"}]`)
+	if err == nil {
+		t.Error("expected error on invalid response JSON")
+	}
+}
+
+func TestTriageItemsInvalidContent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := ChatResponse{
+			Choices: []struct {
+				Message ChatMessage `json:"message"`
+			}{
+				{Message: ChatMessage{Role: "assistant", Content: "no json here"}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client, _ := NewPerplexityClient("test-key", WithPerplexityBaseURL(server.URL))
+	_, err := client.TriageItems(`[{"id":"1","title":"Test"}]`)
+	if err == nil {
+		t.Error("expected error on invalid content")
+	}
+}
+
+func TestTriageItemsRetryThenSuccess(t *testing.T) {
+	callCount := 0
+	triageResult := []Result{
+		{
+			ID:    "item1",
+			Title: "Test",
+			URL:   "https://example.com",
+			TriageDecision: TriageDecision{
+				Action:   "later",
+				Priority: "low",
+				Reason:   "Not urgent",
+			},
+		},
+	}
+	resultJSON, _ := json.Marshal(triageResult)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("error"))
+			return
+		}
+		resp := ChatResponse{
+			Choices: []struct {
+				Message ChatMessage `json:"message"`
+			}{
+				{Message: ChatMessage{Role: "assistant", Content: string(resultJSON)}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client, _ := NewPerplexityClient("test-key", WithPerplexityBaseURL(server.URL))
+	results, err := client.TriageItems(`[{"id":"item1","title":"Test"}]`)
+	if err != nil {
+		t.Fatalf("expected success after retry, got: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 calls (1 retry), got %d", callCount)
+	}
+}
+
+func TestParseSummaryMissingSections(t *testing.T) {
+	content := "No sections here at all"
+	summary := ParseSummary(content)
+
+	if len(summary.TodayTop3) != 0 {
+		t.Errorf("expected 0 top 3, got %d", len(summary.TodayTop3))
+	}
+	if len(summary.QuickWins) != 0 {
+		t.Errorf("expected 0 quick wins, got %d", len(summary.QuickWins))
+	}
+	if len(summary.BatchDelete) != 0 {
+		t.Errorf("expected 0 batch delete, got %d", len(summary.BatchDelete))
+	}
+}
+
+func TestExtractSectionCaseInsensitive(t *testing.T) {
+	content := `**today's top 3**:
+- Item one
+- Item two
+`
+	items := extractSection(content, "Today's Top 3")
+	if len(items) != 2 {
+		t.Errorf("expected 2 items from case-insensitive match, got %d", len(items))
+	}
+}
+
+func TestExtractJSONWithMixedContent(t *testing.T) {
+	content := `Here is the analysis:
+
+Some text before the JSON.
+
+[{"id": "1", "title": "Test", "url": "https://example.com", "triage_decision": {"action": "read_now", "priority": "high", "reason": "test"}}]
+
+**Today's Top 3**:
+1. Item one
+`
+	results, err := ParseTriageResponse(content)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
+	}
+}
+
+func TestExtractJSONUnmatchedBracket(t *testing.T) {
+	content := "[{\"id\": \"1\""
+	result := extractJSON(content)
+	if result != "" {
+		t.Errorf("expected empty string for unmatched bracket, got %q", result)
+	}
 }
