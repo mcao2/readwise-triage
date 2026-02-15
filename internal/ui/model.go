@@ -183,6 +183,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listView.SetItems(m.items)
 		m.state = StateReviewing
 
+	case UpdateFinishedMsg:
+		m.statusMessage = fmt.Sprintf("Successfully updated %d items (%d failed)", msg.Success, msg.Failed)
+		m.state = StateDone
+
 	case ErrorMsg:
 		m.statusMessage = msg.Error.Error()
 		m.state = StateConfig
@@ -262,6 +266,11 @@ type ErrorMsg struct {
 	Error error
 }
 
+type UpdateFinishedMsg struct {
+	Success int
+	Failed  int
+}
+
 // State handlers
 func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
@@ -339,6 +348,60 @@ func (m Model) startTriaging() tea.Cmd {
 	)
 }
 
+func (m Model) startUpdating() tea.Cmd {
+	return tea.Sequence(
+		func() tea.Msg {
+			return StateChangeMsg{State: StateUpdating}
+		},
+		func() tea.Msg {
+			if m.cfg == nil || m.cfg.ReadwiseToken == "" {
+				return ErrorMsg{Error: fmt.Errorf("READWISE_TOKEN not configured")}
+			}
+
+			client, err := readwise.NewClient(m.cfg.ReadwiseToken)
+			if err != nil {
+				return ErrorMsg{Error: err}
+			}
+
+			var updates []readwise.UpdateRequest
+			for _, item := range m.items {
+				if item.Action != "" {
+					update := readwise.UpdateRequest{
+						DocumentID: item.ID,
+					}
+
+					switch item.Action {
+					case "read_now":
+						update.Tags = []string{"read_now"}
+					case "later":
+						update.Location = "later"
+					case "archive":
+						update.Location = "archive"
+					case "delete":
+						update.Location = "trash"
+					}
+
+					if item.Priority != "" {
+						update.Tags = append(update.Tags, "priority:"+item.Priority)
+					}
+
+					updates = append(updates, update)
+				}
+			}
+
+			if len(updates) == 0 {
+				return UpdateFinishedMsg{Success: 0, Failed: 0}
+			}
+
+			res, _ := client.BatchUpdate(updates, nil)
+			return UpdateFinishedMsg{
+				Success: res.Success,
+				Failed:  res.Failed,
+			}
+		},
+	)
+}
+
 func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Up):
@@ -379,6 +442,9 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.messageType = "success"
 		}
 		m.state = StateMessage
+		return m, nil
+	case keyMatches(msg, m.keys.Update):
+		m.state = StateConfirming
 		return m, nil
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
@@ -464,10 +530,10 @@ func (m *Model) applyBatchPriority(priority string) {
 }
 
 func (m *Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case keyMatches(msg, m.keys.Enter):
-		m.state = StateUpdating
-	case keyMatches(msg, m.keys.Back):
+	switch msg.String() {
+	case "y", "Y":
+		return m, m.startUpdating()
+	case "n", "N", "esc":
 		m.state = StateReviewing
 	}
 	return m, nil
@@ -574,9 +640,9 @@ func (m Model) reviewingView() string {
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
 		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • u: update • q: quit")
 	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • u: update • q: quit")
 	}
 
 	var statusText string
