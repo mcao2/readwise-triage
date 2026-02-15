@@ -164,8 +164,8 @@ func TestValidActionsAndPriorities(t *testing.T) {
 	if !validActions["archive"] {
 		t.Error("archive should be a valid action")
 	}
-	if !validActions["delete"] {
-		t.Error("delete should be a valid action")
+	if validActions["delete"] {
+		t.Error("delete should no longer be a valid action")
 	}
 	if validActions["invalid"] {
 		t.Error("invalid should not be a valid action")

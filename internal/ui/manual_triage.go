@@ -16,7 +16,6 @@ var validActions = map[string]bool{
 	"read_now": true,
 	"later":    true,
 	"archive":  true,
-	"delete":   true,
 }
 
 // Valid priorities for triage decisions
@@ -201,7 +200,7 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 		}
 
 		if !validActions[result.TriageDecision.Action] {
-			errors = append(errors, fmt.Sprintf("result %d (%s): invalid action '%s' (must be one of: read_now, later, archive, delete)", i, result.Title, result.TriageDecision.Action))
+			errors = append(errors, fmt.Sprintf("result %d (%s): invalid action '%s' (must be one of: read_now, later, archive)", i, result.Title, result.TriageDecision.Action))
 			continue
 		}
 

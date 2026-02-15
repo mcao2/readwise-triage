@@ -29,7 +29,6 @@ func NewBatchForm() *BatchForm {
 					huh.NewOption("Read Now", "read_now"),
 					huh.NewOption("Later", "later"),
 					huh.NewOption("Archive", "archive"),
-					huh.NewOption("Delete", "delete"),
 				).
 				Value(&result.FilterAction),
 
@@ -40,7 +39,6 @@ func NewBatchForm() *BatchForm {
 					huh.NewOption("Read Now 🔥", "read_now"),
 					huh.NewOption("Later ⏰", "later"),
 					huh.NewOption("Archive 📁", "archive"),
-					huh.NewOption("Delete 🗑️", "delete"),
 				).
 				Value(&result.NewAction),
 

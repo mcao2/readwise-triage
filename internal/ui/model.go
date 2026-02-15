@@ -375,10 +375,8 @@ func (m Model) startUpdating() tea.Cmd {
 						update.Tags = []string{"read_now"}
 					case "later":
 						update.Location = "later"
-					case "archive":
+					case "archive", "delete":
 						update.Location = "archive"
-					case "delete":
-						update.Location = "trash"
 					}
 
 					if item.Priority != "" {
@@ -459,8 +457,6 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.applyBatchAction("later")
 		case "a":
 			m.applyBatchAction("archive")
-		case "d":
-			m.applyBatchAction("delete")
 		case "1":
 			m.applyBatchPriority("high")
 		case "2":
@@ -483,10 +479,6 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.listView.SetItems(m.items)
 		case "a":
 			item.Action = "archive"
-			m.saveTriage(item.ID, item.Action, item.Priority)
-			m.listView.SetItems(m.items)
-		case "d":
-			item.Action = "delete"
 			m.saveTriage(item.ID, item.Action, item.Priority)
 			m.listView.SetItems(m.items)
 		case "1":
@@ -640,9 +632,9 @@ func (m Model) reviewingView() string {
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
 		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • u: update • q: quit")
 	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • u: update • q: quit")
+		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • u: update • q: quit")
 	}
 
 	var statusText string

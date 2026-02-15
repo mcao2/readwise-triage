@@ -88,15 +88,13 @@ func Truncate(s string, maxLen int) string {
 func getActionText(action string) string {
 	switch action {
 	case "read_now":
-		return "🔥 Read"
+		return "🔥 Read    "
 	case "later":
-		return "⏰ Later"
+		return "⏰ Later   "
 	case "archive":
-		return "📁 Archive"
-	case "delete":
-		return "❌ Delete"
+		return "📁 Archive "
 	default:
-		return "❓ New"
+		return "❓ New     "
 	}
 }
 

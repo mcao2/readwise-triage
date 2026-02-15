@@ -36,7 +36,6 @@ func NewEditForm(item *Item) *EditForm {
 					huh.NewOption("Read Now 🔥", "read_now"),
 					huh.NewOption("Later ⏰", "later"),
 					huh.NewOption("Archive 📁", "archive"),
-					huh.NewOption("Delete 🗑️", "delete"),
 				).
 				Value(&result.Action),
 
@@ -46,24 +45,9 @@ func NewEditForm(item *Item) *EditForm {
 					huh.NewOption("High 🔴", "high"),
 					huh.NewOption("Medium 🟡", "medium"),
 					huh.NewOption("Low 🟢", "low"),
+					huh.NewOption("None ⚪", ""),
 				).
 				Value(&result.Priority),
-
-			huh.NewInput().
-				Title("Reason").
-				Placeholder("Why this action?").
-				Value(&result.Reason),
-
-			huh.NewMultiSelect[string]().
-				Title("Tags").
-				Options(
-					huh.NewOption("TUI", "tui").Selected(true),
-					huh.NewOption("Go", "go").Selected(true),
-					huh.NewOption("Productivity", "productivity"),
-					huh.NewOption("Tutorial", "tutorial"),
-					huh.NewOption("Reference", "reference"),
-				).
-				Value(&result.Tags),
 		),
 	)
 
