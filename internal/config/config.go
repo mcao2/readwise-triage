@@ -15,6 +15,7 @@ type Config struct {
 	PerplexityAPIKey string `yaml:"perplexity_api_key"`
 	DefaultDaysAgo   int    `yaml:"default_days_ago"`
 	Theme            string `yaml:"theme"`
+	UseLLMTriage     bool   `yaml:"use_llm_triage"`
 }
 
 // Load loads configuration from config file and environment variables
@@ -124,6 +125,9 @@ default_days_ago: 7
 
 # Optional: Color theme (default, catppuccin, dracula, nord, gruvbox)
 theme: "default"
+
+# Optional: Use LLM auto-triage by default (default: true)
+use_llm_triage: true
 `
 
 	return os.WriteFile(configPath, []byte(example), 0600)
@@ -144,6 +148,7 @@ func (c *Config) Save() error {
 	safeConfig := &Config{
 		DefaultDaysAgo: c.DefaultDaysAgo,
 		Theme:          c.Theme,
+		UseLLMTriage:   c.UseLLMTriage,
 	}
 
 	data, err := yaml.Marshal(safeConfig)

@@ -111,9 +111,16 @@ func NewModel() Model {
 		}
 	}
 
+	// Determine mode (default to true if not set)
+	useLLM := cfg.UseLLMTriage
+	if !useLLM && cfg.Theme == "" {
+		// First run, default to true
+		useLLM = true
+	}
+
 	m := Model{
 		state:         StateConfig,
-		useLLMTriage:  true,
+		useLLMTriage:  useLLM,
 		styles:        NewStyles(Themes[themeName]),
 		keys:          DefaultKeyMap(),
 		selectedIndex: 0,
@@ -257,6 +264,10 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.startFetching()
 	case msg.String() == "m":
 		m.useLLMTriage = !m.useLLMTriage
+		if m.cfg != nil {
+			m.cfg.UseLLMTriage = m.useLLMTriage
+			_ = m.cfg.Save()
+		}
 	case msg.String() == "t":
 		m.cycleTheme()
 	}
