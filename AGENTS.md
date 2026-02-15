@@ -94,9 +94,7 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 ---
 
 ## Tooling & Constraints
-- **NO `as any`**: Do not bypass type safety.
-- **NO Type Suppression**: Never use `@ts-ignore` or equivalent in Go.
-- **Evidence Required**: No task is complete without `lsp_diagnostics` being clean on changed files and `go build ./...` succeeding.
+- **Evidence Required**: No task is complete without `go vet ./...` being clean on changed files and `go build ./...` succeeding.
 - **Commit Pattern**: Create atomic commits with descriptive messages (e.g., `Fix: ...`, `Feat: ...`, `Refactor: ...`). Commit frequently along the way to maintain a clean and revertible history.
 - **Gitignore**: `cmd/readwise-triage` (the binary) is gitignored. When staging files, don't `git add` that path — only add the `.go` source file at `cmd/readwise-triage/main.go`.
 - **Bubbles Subpackages**: Some `bubbles` subpackages (e.g., `progress`) pull in transitive dependencies (e.g., `harmonica`) that aren't in `go.sum` by default. Run `go get github.com/charmbracelet/bubbles/<subpackage>` to resolve missing `go.sum` entries before building.
