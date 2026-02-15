@@ -127,7 +127,7 @@ func TestVerifyToken(t *testing.T) {
 }
 
 func TestGetInboxItems(t *testing.T) {
-	now := time.Now()
+	now := FlexibleTime{Time: time.Now()}
 	item1 := Item{
 		ID:        "item1",
 		Title:     "Test Article 1",
@@ -178,7 +178,7 @@ func TestGetInboxItems(t *testing.T) {
 }
 
 func TestGetInboxItemsWithPagination(t *testing.T) {
-	now := time.Now()
+	now := FlexibleTime{Time: time.Now()}
 	cursor1 := "next-page-cursor"
 
 	item1 := Item{
@@ -241,7 +241,7 @@ func TestGetInboxItemsWithPagination(t *testing.T) {
 }
 
 func TestExtractForPerplexity(t *testing.T) {
-	now := time.Now()
+	now := FlexibleTime{Time: time.Now()}
 	items := []Item{
 		{
 			ID:        "item1",
