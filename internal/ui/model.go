@@ -61,6 +61,8 @@ type Model struct {
 	cursor        int
 	selected      map[int]bool
 
+	listView ListView
+
 	// Editing
 	editingItem *Item
 
@@ -81,7 +83,7 @@ type Item struct {
 
 // NewModel creates a new UI model
 func NewModel() Model {
-	return Model{
+	m := Model{
 		state:         StateConfig,
 		useLLMTriage:  true,
 		styles:        DefaultStyles(),
@@ -90,6 +92,8 @@ func NewModel() Model {
 		cursor:        0,
 		selected:      make(map[int]bool),
 	}
+	m.listView = NewListView(80, 24)
+	return m
 }
 
 // Init initializes the model
@@ -103,6 +107,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.listView.SetWidthHeight(msg.Width, msg.Height)
 
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
@@ -116,6 +121,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ItemsLoadedMsg:
 		m.items = msg.Items
+		m.listView.SetItems(msg.Items)
 		m.state = StateReviewing
 	}
 
@@ -204,40 +210,46 @@ func (m Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Up):
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.listView.MoveCursor(-1)
+		m.cursor = m.listView.Cursor()
 	case keyMatches(msg, m.keys.Down):
-		if m.cursor < len(m.items)-1 {
-			m.cursor++
-		}
+		m.listView.MoveCursor(1)
+		m.cursor = m.listView.Cursor()
 	case keyMatches(msg, m.keys.Enter):
-		if len(m.items) > 0 && m.cursor < len(m.items) {
-			m.editingItem = &m.items[m.cursor]
+		if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
+			m.editingItem = item
 			m.state = StateEditing
 		}
 	case keyMatches(msg, m.keys.Select):
-		m.selected[m.cursor] = !m.selected[m.cursor]
+		m.listView.ToggleSelection()
+		m.cursor = m.listView.Cursor()
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
 	}
 
-	if len(m.items) > 0 && m.cursor < len(m.items) {
+	if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 		switch msg.String() {
 		case "r":
-			m.items[m.cursor].Action = "read_now"
+			item.Action = "read_now"
+			m.listView.SetItems(m.items)
 		case "l":
-			m.items[m.cursor].Action = "later"
+			item.Action = "later"
+			m.listView.SetItems(m.items)
 		case "a":
-			m.items[m.cursor].Action = "archive"
+			item.Action = "archive"
+			m.listView.SetItems(m.items)
 		case "d":
-			m.items[m.cursor].Action = "delete"
+			item.Action = "delete"
+			m.listView.SetItems(m.items)
 		case "1":
-			m.items[m.cursor].Priority = "high"
+			item.Priority = "high"
+			m.listView.SetItems(m.items)
 		case "2":
-			m.items[m.cursor].Priority = "medium"
+			item.Priority = "medium"
+			m.listView.SetItems(m.items)
 		case "3":
-			m.items[m.cursor].Priority = "low"
+			item.Priority = "low"
+			m.listView.SetItems(m.items)
 		}
 	}
 
@@ -307,21 +319,7 @@ func (m Model) reviewingView() string {
 	if len(m.items) == 0 {
 		list = m.styles.Normal.Render("No items to review")
 	} else {
-		var items []string
-		for i, item := range m.items {
-			cursor := " "
-			if m.cursor == i {
-				cursor = ">"
-			}
-			selected := " "
-			if m.selected[i] {
-				selected = "x"
-			}
-			action := actionIcon(item.Action)
-			line := m.styles.Normal.Render(cursor + " [" + selected + "] " + action + " " + item.Title)
-			items = append(items, line)
-		}
-		list = lipgloss.JoinVertical(lipgloss.Left, items...)
+		list = m.listView.View()
 	}
 
 	count := m.styles.Help.Render(fmt.Sprintf("Item %d of %d", m.cursor+1, len(m.items)))
@@ -361,21 +359,6 @@ func (m Model) doneView() string {
 	message := m.styles.Highlight.Render("All updates applied successfully!")
 	help := m.styles.Help.Render("Press q to quit")
 	return lipgloss.JoinVertical(lipgloss.Center, title, "", message, "", help)
-}
-
-func actionIcon(action string) string {
-	switch action {
-	case "read_now":
-		return "🔥"
-	case "later":
-		return "⏰"
-	case "archive":
-		return "📁"
-	case "delete":
-		return "🗑️"
-	default:
-		return "❓"
-	}
 }
 
 func keyMatches(msg tea.KeyMsg, target key.Binding) bool {
