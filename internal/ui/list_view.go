@@ -11,12 +11,19 @@ import (
 )
 
 type ListView struct {
-	table    table.Model
-	items    []Item
-	cursor   int
-	selected map[int]bool
-	width    int
-	height   int
+	table      table.Model
+	items      []Item
+	cursor     int
+	selected   map[int]bool
+	width      int
+	height     int
+	visibleRows int // number of data rows visible (excluding header)
+
+	// Styles for custom rendering
+	headerStyle   lipgloss.Style
+	cellStyle     lipgloss.Style
+	selectedStyle lipgloss.Style
+	columns       []table.Column
 }
 
 func listColumns(width int) []table.Column {
@@ -37,39 +44,59 @@ func listColumns(width int) []table.Column {
 func NewListView(width, height int) ListView {
 	columns := listColumns(width)
 
-	s := table.DefaultStyles()
-	s.Header = s.Header.
+	headerStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		BorderBottom(true).
 		Bold(true)
-	s.Selected = s.Selected.
+	selectedStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("229")).
 		Background(lipgloss.Color("57")).
 		Bold(false)
+	cellStyle := lipgloss.NewStyle().Padding(0, 1)
 
-	tableHeight := height - 12
-	if tableHeight < 5 {
-		tableHeight = 5
+	// Reserve space for: header(2) + divider(1) + detail pane(4) + status(1) + footer(4)
+	visibleRows := height - 12
+	// Subtract 2 for the table header (text + border)
+	visibleRows -= 2
+	if visibleRows < 3 {
+		visibleRows = 3
 	}
 
+	// Still create the table for compatibility but we won't use its View()
 	t := table.New(
 		table.WithColumns(columns),
-		table.WithHeight(tableHeight),
+		table.WithHeight(visibleRows+2),
 		table.WithFocused(true),
 	)
-	t.SetStyles(s)
 
 	return ListView{
-		table:    t,
-		selected: make(map[int]bool),
-		width:    width,
-		height:   height,
+		table:         t,
+		selected:      make(map[int]bool),
+		width:         width,
+		height:        height,
+		visibleRows:   visibleRows,
+		headerStyle:   headerStyle,
+		cellStyle:     cellStyle,
+		selectedStyle: selectedStyle,
+		columns:       columns,
 	}
 }
 
-// UpdateTableStyles updates the table styles to match the current theme
+// UpdateTableStyles updates the styles to match the current theme
 func (lv *ListView) UpdateTableStyles(theme Theme) {
+	lv.headerStyle = lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(theme.Subtle)).
+		BorderBottom(true).
+		Bold(true).
+		Foreground(lipgloss.Color(theme.Primary))
+	lv.selectedStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.Background)).
+		Background(lipgloss.Color(theme.Primary)).
+		Bold(false)
+
+	// Keep the bubbles table in sync for any code that still uses it
 	s := table.DefaultStyles()
 	s.Header = s.Header.
 		BorderStyle(lipgloss.NormalBorder()).
@@ -159,7 +186,6 @@ func getPriorityText(priority string) string {
 }
 
 // detailPaneHeight is the fixed number of lines the detail pane always occupies.
-// This keeps the total view height stable across items with varying metadata.
 const detailPaneHeight = 4
 
 // DetailView renders a detail pane for the given item, padded to a fixed height.
@@ -176,15 +202,12 @@ func (lv *ListView) DetailView(width int, styles Styles) string {
 
 	var lines []string
 
-	// Title line
 	lines = append(lines, styles.Highlight.Render(Truncate(item.Title, maxWidth)))
 
-	// URL
 	if item.URL != "" {
 		lines = append(lines, styles.Help.Render(Truncate(item.URL, maxWidth)))
 	}
 
-	// Metadata line: source, category, reading time, word count
 	var meta []string
 	if item.Source != "" {
 		meta = append(meta, "src:"+item.Source)
@@ -205,12 +228,10 @@ func (lv *ListView) DetailView(width int, styles Styles) string {
 		lines = append(lines, styles.Normal.Render(Truncate(strings.Join(meta, " · "), maxWidth)))
 	}
 
-	// Summary (single line, truncated)
 	if item.Summary != "" {
 		lines = append(lines, styles.HelpDesc.Render(Truncate(item.Summary, maxWidth)))
 	}
 
-	// Pad to fixed height so the view doesn't jump when navigating between items
 	for len(lines) < detailPaneHeight {
 		lines = append(lines, "")
 	}
@@ -276,20 +297,89 @@ func (lv ListView) GetItem(index int) *Item {
 	return nil
 }
 
+// renderCell renders a single cell value with the given column width.
+func (lv *ListView) renderCell(value string, colWidth int) string {
+	style := lipgloss.NewStyle().Width(colWidth).MaxWidth(colWidth).Inline(true)
+	return lv.cellStyle.Render(style.Render(runewidth.Truncate(value, colWidth, "…")))
+}
+
+// View renders the table with our own scrolling logic, bypassing the
+// bubbles table viewport which has broken YOffset calculations.
 func (lv ListView) View() string {
-	return lv.table.View()
+	rows := lv.table.Rows()
+
+	// Render header
+	headerCells := make([]string, 0, len(lv.columns))
+	for _, col := range lv.columns {
+		if col.Width <= 0 {
+			continue
+		}
+		style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
+		cell := style.Render(runewidth.Truncate(col.Title, col.Width, "…"))
+		headerCells = append(headerCells, lv.headerStyle.Render(cell))
+	}
+	header := lipgloss.JoinHorizontal(lipgloss.Top, headerCells...)
+
+	// Calculate visible window
+	visibleRows := lv.visibleRows
+	if visibleRows <= 0 {
+		visibleRows = 10
+	}
+
+	start := 0
+	if lv.cursor >= visibleRows {
+		start = lv.cursor - visibleRows + 1
+	}
+	end := start + visibleRows
+	if end > len(rows) {
+		end = len(rows)
+		start = end - visibleRows
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	// Render visible rows
+	renderedRows := make([]string, 0, visibleRows)
+	for i := start; i < end; i++ {
+		cells := make([]string, 0, len(lv.columns))
+		for ci, value := range rows[i] {
+			if lv.columns[ci].Width <= 0 {
+				continue
+			}
+			cells = append(cells, lv.renderCell(value, lv.columns[ci].Width))
+		}
+		row := lipgloss.JoinHorizontal(lipgloss.Top, cells...)
+		if i == lv.cursor {
+			row = lv.selectedStyle.Render(row)
+		}
+		renderedRows = append(renderedRows, row)
+	}
+
+	// Pad to fixed height
+	for len(renderedRows) < visibleRows {
+		renderedRows = append(renderedRows, "")
+	}
+
+	return header + "\n" + strings.Join(renderedRows, "\n")
 }
 
 func (lv *ListView) SetWidthHeight(width, height int) {
 	lv.width = width
 	lv.height = height
+	lv.columns = listColumns(width)
+
 	// Reserve space for: header(2) + divider(1) + detail pane(4) + status(1) + footer(4)
-	tableHeight := height - 12
-	if tableHeight < 5 {
-		tableHeight = 5
+	visibleRows := height - 12
+	// Subtract 2 for the table header (text + border)
+	visibleRows -= 2
+	if visibleRows < 3 {
+		visibleRows = 3
 	}
-	lv.table.SetHeight(tableHeight)
-	lv.table.SetColumns(listColumns(width))
+	lv.visibleRows = visibleRows
+
+	lv.table.SetHeight(visibleRows + 2)
+	lv.table.SetColumns(lv.columns)
 }
 
 func (lv ListView) Init() tea.Cmd {
