@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mcao2/readwise-triage/internal/config"
@@ -57,16 +60,19 @@ type Model struct {
 
 	useLLMTriage bool
 	themeIndex   int
+	showHelp     bool
 
 	items  []Item
 	cursor int
 
 	listView ListView
+	spinner  spinner.Model
+	progress progress.Model
 
-	progress      float64
-	statusMessage string
-	messageType   string
-	batchMode     bool
+	updateProgress float64
+	statusMessage  string
+	messageType    string
+	batchMode      bool
 
 	cfg         *config.Config
 	triageStore *config.TriageStore
@@ -130,6 +136,15 @@ func NewModel() *Model {
 		useLLM = true
 	}
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(Themes[themeName].Primary))
+
+	p := progress.New(
+		progress.WithDefaultGradient(),
+		progress.WithoutPercentage(),
+	)
+
 	m := &Model{
 		state:         StateConfig,
 		useLLMTriage:  useLLM,
@@ -138,11 +153,14 @@ func NewModel() *Model {
 		themeIndex:    themeIndex,
 		items:         []Item{},
 		cursor:        0,
+		spinner:       s,
+		progress:      p,
 		cfg:           cfg,
 		triageStore:   triageStore,
 		fetchLookback: cfg.DefaultDaysAgo,
 	}
 	m.listView = NewListView(80, 24)
+	m.listView.UpdateTableStyles(Themes[themeName])
 	return m
 }
 
@@ -151,6 +169,8 @@ func (m *Model) cycleTheme() {
 	m.themeIndex = (m.themeIndex + 1) % len(themeNames)
 	newTheme := themeNames[m.themeIndex]
 	m.styles = NewStyles(Themes[newTheme])
+	m.listView.UpdateTableStyles(Themes[newTheme])
+	m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(Themes[newTheme].Primary))
 
 	if m.cfg != nil {
 		m.cfg.Theme = newTheme
@@ -159,7 +179,7 @@ func (m *Model) cycleTheme() {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return nil
+	return m.spinner.Tick
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -168,6 +188,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.listView.SetWidthHeight(msg.Width, msg.Height)
+		m.progress.Width = msg.Width - 8
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case progress.FrameMsg:
+		progressModel, cmd := m.progress.Update(msg)
+		m.progress = progressModel.(progress.Model)
+		return m, cmd
 
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
@@ -176,9 +207,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = msg.State
 
 	case ProgressMsg:
-		m.progress = msg.Progress
+		m.updateProgress = msg.Progress
 		m.statusMessage = msg.Message
-		return m, m.waitForUpdateProgress(msg.Channel, msg.Success, msg.Failed)
+		cmd := m.progress.SetPercent(msg.Progress)
+		return m, tea.Batch(cmd, m.waitForUpdateProgress(msg.Channel, msg.Success, msg.Failed))
 
 	case ItemsLoadedMsg:
 		m.items = msg.Items
@@ -234,6 +266,7 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.Quit):
 		return m, tea.Quit
 	case keyMatches(msg, m.keys.Help):
+		m.showHelp = !m.showHelp
 		return m, nil
 	}
 
@@ -401,7 +434,7 @@ func (m *Model) startUpdating() tea.Cmd {
 	}
 
 	m.state = StateUpdating
-	m.progress = 0
+	m.updateProgress = 0
 	m.statusMessage = "Preparing updates..."
 
 	progressChan := make(chan readwise.BatchUpdateProgress)
@@ -643,123 +676,338 @@ func (m *Model) saveLLMTriage(id, action, priority string) {
 }
 
 func (m *Model) configView() string {
-	title := m.styles.Title.Render("Readwise Triage")
+	// Styled title
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(m.styles.theme.Primary)).
+		Render("  Readwise Triage")
 
-	var modeText string
+	// Mode indicator
+	var modeIcon, modeLabel string
 	if m.useLLMTriage {
-		modeText = m.styles.Normal.Render("Mode: LLM Auto-Triage (Perplexity)")
+		modeIcon = "🤖"
+		modeLabel = "LLM Auto-Triage (Perplexity)"
 	} else {
-		modeText = m.styles.Normal.Render("Mode: Manual Triage")
+		modeIcon = "✋"
+		modeLabel = "Manual Triage"
 	}
+	modeLine := fmt.Sprintf("  %s  %s", modeIcon, m.styles.Normal.Render(modeLabel))
 
+	// Theme indicator
 	themeName := m.cfg.Theme
 	if themeName == "" {
 		themeName = "default"
 	}
-	themeText := m.styles.Normal.Render("Theme: " + themeName)
+	themeLine := fmt.Sprintf("  🎨  %s", m.styles.Normal.Render("Theme: "+themeName))
 
-	help := m.styles.Help.Render("Enter: start • m: toggle mode • t: change theme • q: quit")
+	// Days lookback
+	daysLine := fmt.Sprintf("  📅  %s", m.styles.Normal.Render(fmt.Sprintf("Fetch last %d days", m.fetchLookback)))
 
-	var errorText string
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		"",
+		title,
+		"",
+		modeLine,
+		themeLine,
+		daysLine,
+		"",
+	)
+
+	// Error display
 	if m.statusMessage != "" {
-		errorText = m.styles.Error.Render("Error: " + m.statusMessage)
+		errLine := m.styles.Error.Render("  ⚠  " + m.statusMessage)
+		content = lipgloss.JoinVertical(lipgloss.Left, content, errLine, "")
 	}
 
-	if errorText != "" {
-		return lipgloss.JoinVertical(lipgloss.Center, title, "", modeText, "", themeText, "", errorText, "", help)
-	}
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", modeText, "", themeText, "", help)
+	// Help
+	help := m.renderHelpLine([]helpEntry{
+		{"enter", "start"},
+		{"m", "mode"},
+		{"t", "theme"},
+		{"q", "quit"},
+	})
+
+	card := m.styles.Card.Render(content)
+
+	return lipgloss.JoinVertical(lipgloss.Center,
+		"",
+		card,
+		"",
+		help,
+	)
 }
 
 func (m *Model) fetchingView() string {
-	title := m.styles.Title.Render("Fetching Inbox Items")
-	status := m.styles.Normal.Render("Loading from Readwise...")
+	spinnerView := m.spinner.View()
+	status := fmt.Sprintf("%s Loading from Readwise...", spinnerView)
 
-	var helpText string
+	content := m.styles.Border.Render(
+		lipgloss.JoinVertical(lipgloss.Center,
+			m.styles.Title.Render("Fetching Inbox Items"),
+			"",
+			m.styles.Normal.Render(status),
+		),
+	)
+
+	entries := []helpEntry{{"q", "cancel"}}
 	if m.useLLMTriage {
-		helpText = "s: skip LLM triage (manual mode) • q: cancel"
-	} else {
-		helpText = "q: cancel"
+		entries = append([]helpEntry{{"s", "skip LLM"}}, entries...)
 	}
-	help := m.styles.Help.Render(helpText)
+	help := m.renderHelpLine(entries)
 
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", status, "", help)
+	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
 }
 
 func (m *Model) triagingView() string {
-	title := m.styles.Title.Render("Triaging Items")
-	status := m.styles.Normal.Render("Processing with LLM...")
-	help := m.styles.Help.Render("Press q to cancel")
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", status, "", help)
+	spinnerView := m.spinner.View()
+	status := fmt.Sprintf("%s Processing with LLM...", spinnerView)
+
+	content := m.styles.Border.Render(
+		lipgloss.JoinVertical(lipgloss.Center,
+			m.styles.Title.Render("Triaging Items"),
+			"",
+			m.styles.Normal.Render(status),
+		),
+	)
+
+	help := m.renderHelpLine([]helpEntry{{"q", "cancel"}})
+	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
 }
 
 func (m *Model) reviewingView() string {
-	title := m.styles.Title.Render("Review Items")
+	// Header bar
+	headerLeft := m.styles.HelpKey.Render("Readwise Triage")
+	countText := m.styles.HelpDesc.Render(fmt.Sprintf("%d/%d", m.cursor+1, len(m.items)))
+	if m.batchMode {
+		selectedCount := len(m.listView.GetSelected())
+		countText += m.styles.Highlight.Render(fmt.Sprintf("  ● %d selected", selectedCount))
+	}
+	headerGap := ""
+	if m.width > 0 {
+		gap := m.width - lipgloss.Width(headerLeft) - lipgloss.Width(countText) - 4
+		if gap > 0 {
+			headerGap = strings.Repeat(" ", gap)
+		}
+	}
+	header := m.styles.HeaderBar.Width(m.width).Render(headerLeft + headerGap + countText)
 
+	// Table
 	var list string
 	if len(m.items) == 0 {
-		list = m.styles.Normal.Render("No items to review")
+		list = m.styles.Normal.Render("  No items to review")
 	} else {
 		list = m.listView.View()
 	}
 
-	count := m.styles.Help.Render(fmt.Sprintf("Item %d of %d", m.cursor+1, len(m.items)))
-
-	var help string
-	if m.batchMode {
-		selectedCount := len(m.listView.GetSelected())
-		batchIndicator := m.styles.Highlight.Render(fmt.Sprintf(" [BATCH: %d selected]", selectedCount))
-		help = m.styles.Help.Render("j/k: navigate • x: deselect • r/l/a/d/n: batch action • 1/2/3: batch priority" + batchIndicator + " • e: export JSON • i: import triage • o: open • f: more • R: refresh • u: update • q: quit")
-	} else {
-		help = m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d/n: action • 1/2/3: priority • e: export JSON • i: import triage • o: open • f: more • R: refresh • u: update • q: quit")
+	// Detail pane
+	detail := ""
+	if len(m.items) > 0 {
+		detailContent := m.listView.DetailView(m.width, m.styles)
+		if detailContent != "" {
+			detail = m.styles.Detail.Width(m.width).Render(detailContent)
+		}
 	}
 
-	var statusText string
+	// Status message
+	var statusLine string
 	if m.statusMessage != "" {
-		statusText = m.styles.Normal.Render(m.statusMessage)
+		statusLine = m.styles.Help.Render("  " + m.statusMessage)
 	}
 
-	if statusText != "" {
-		return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, "", statusText, help)
+	// Help overlay or footer
+	var footer string
+	if m.showHelp {
+		footer = m.renderFullHelp()
+	} else {
+		footer = m.renderReviewFooter()
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, help)
+
+	parts := []string{header, list}
+	if detail != "" {
+		parts = append(parts, detail)
+	}
+	if statusLine != "" {
+		parts = append(parts, statusLine)
+	}
+	parts = append(parts, footer)
+
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m *Model) confirmingView() string {
-	title := m.styles.Title.Render("Confirm Update")
-	message := m.styles.Normal.Render("Are you sure you want to update Readwise?")
-	help := m.styles.Help.Render("y: yes • n: no")
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", message, "", help)
+	content := m.styles.Border.Render(
+		lipgloss.JoinVertical(lipgloss.Center,
+			m.styles.Title.Render("Confirm Update"),
+			"",
+			m.styles.Normal.Render("Push changes to Readwise?"),
+		),
+	)
+
+	help := m.renderHelpLine([]helpEntry{
+		{"y", "confirm"},
+		{"n", "cancel"},
+	})
+
+	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
 }
 
 func (m *Model) updatingView() string {
-	title := m.styles.Title.Render("Updating Readwise")
-	progress := m.styles.Normal.Render(fmt.Sprintf("Progress: %.0f%%", m.progress*100))
-	status := m.styles.Normal.Render(m.statusMessage)
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", progress, status)
+	spinnerView := m.spinner.View()
+	progressBar := m.progress.View()
+	pctText := fmt.Sprintf("%.0f%%", m.updateProgress*100)
+
+	content := m.styles.Border.Render(
+		lipgloss.JoinVertical(lipgloss.Center,
+			m.styles.Title.Render("Updating Readwise"),
+			"",
+			fmt.Sprintf("%s %s  %s", spinnerView, m.styles.Normal.Render(m.statusMessage), m.styles.Help.Render(pctText)),
+			"",
+			progressBar,
+		),
+	)
+
+	return lipgloss.JoinVertical(lipgloss.Center, "", content)
 }
 
 func (m *Model) doneView() string {
-	title := m.styles.Title.Render("Complete")
-	message := m.styles.Highlight.Render(m.statusMessage)
-	help := m.styles.Help.Render("Press any key to return to main menu")
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", message, "", help)
+	content := m.styles.Border.Render(
+		lipgloss.JoinVertical(lipgloss.Center,
+			m.styles.Success.Render("✓ Complete"),
+			"",
+			m.styles.Normal.Render(m.statusMessage),
+		),
+	)
+
+	help := m.renderHelpLine([]helpEntry{{"any key", "continue"}})
+	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
 }
 
 func (m *Model) messageView() string {
-	var title string
-	var message string
+	var icon, title string
+	var titleStyle lipgloss.Style
 
 	if m.messageType == "error" {
-		title = m.styles.Error.Render("Error")
-		message = m.styles.Error.Render(m.statusMessage)
+		icon = "✗"
+		title = "Error"
+		titleStyle = m.styles.Error
 	} else {
-		title = m.styles.Title.Render("Success")
-		message = m.styles.Normal.Render(m.statusMessage)
+		icon = "✓"
+		title = "Success"
+		titleStyle = m.styles.Success
 	}
 
-	help := m.styles.Help.Render("Press any key to continue")
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", message, "", help)
+	content := m.styles.Border.Render(
+		lipgloss.JoinVertical(lipgloss.Center,
+			titleStyle.Render(icon+" "+title),
+			"",
+			m.styles.Normal.Render(m.statusMessage),
+		),
+	)
+
+	help := m.renderHelpLine([]helpEntry{{"any key", "continue"}})
+	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
+}
+
+// Help rendering
+
+type helpEntry struct {
+	key  string
+	desc string
+}
+
+func (m *Model) renderHelpLine(entries []helpEntry) string {
+	var parts []string
+	sep := m.styles.HelpSep.Render(" · ")
+	for _, e := range entries {
+		parts = append(parts, m.styles.HelpKey.Render(e.key)+" "+m.styles.HelpDesc.Render(e.desc))
+	}
+	return strings.Join(parts, sep)
+}
+
+func (m *Model) renderReviewFooter() string {
+	var line1, line2 []helpEntry
+
+	if m.batchMode {
+		line1 = []helpEntry{
+			{"j/k", "navigate"},
+			{"x", "deselect"},
+			{"r l a d n", "action"},
+			{"1 2 3", "priority"},
+		}
+	} else {
+		line1 = []helpEntry{
+			{"j/k", "navigate"},
+			{"x", "select"},
+			{"r l a d n", "action"},
+			{"1 2 3", "priority"},
+		}
+	}
+
+	line2 = []helpEntry{
+		{"e", "export"},
+		{"i", "import"},
+		{"o", "open"},
+		{"f", "more"},
+		{"R", "refresh"},
+		{"u", "update"},
+		{"?", "help"},
+		{"q", "quit"},
+	}
+
+	footer := m.styles.FooterBar.Width(m.width).Render(
+		m.renderHelpLine(line1) + "\n" + m.renderHelpLine(line2),
+	)
+	return footer
+}
+
+func (m *Model) renderFullHelp() string {
+	sections := []struct {
+		title   string
+		entries []helpEntry
+	}{
+		{"Navigation", []helpEntry{
+			{"j / ↓", "move down"},
+			{"k / ↑", "move up"},
+			{"x / space", "toggle select"},
+		}},
+		{"Triage Actions", []helpEntry{
+			{"r", "read now"},
+			{"l", "later"},
+			{"a", "archive"},
+			{"d", "delete"},
+			{"n", "needs review"},
+		}},
+		{"Priority", []helpEntry{
+			{"1", "high"},
+			{"2", "medium"},
+			{"3", "low"},
+		}},
+		{"Operations", []helpEntry{
+			{"e", "export to clipboard"},
+			{"i", "import from clipboard"},
+			{"o", "open URL in browser"},
+			{"u", "update Readwise"},
+			{"f", "fetch more (+7 days)"},
+			{"R", "refresh from Readwise"},
+		}},
+		{"General", []helpEntry{
+			{"?", "toggle this help"},
+			{"q / ctrl+c", "quit"},
+		}},
+	}
+
+	var lines []string
+	for _, sec := range sections {
+		lines = append(lines, m.styles.HelpKey.Render("  "+sec.title))
+		for _, e := range sec.entries {
+			lines = append(lines, fmt.Sprintf("    %s  %s",
+				m.styles.HelpKey.Render(fmt.Sprintf("%-12s", e.key)),
+				m.styles.HelpDesc.Render(e.desc),
+			))
+		}
+	}
+
+	return m.styles.FooterBar.Width(m.width).Render(strings.Join(lines, "\n"))
 }
 
 func keyMatches(msg tea.KeyMsg, target key.Binding) bool {

@@ -57,17 +57,20 @@ func TestTruncate(t *testing.T) {
 	tests := []struct {
 		input    string
 		max      int
-		expected string
+		contains string
 	}{
-		{"Hello World", 5, "He..."},
+		{"Hello World", 5, "Hell"},
 		{"Hello", 10, "Hello"},
-		{"こんにちは", 5, "こ..."},
+		{"こんにちは", 5, "こん"},
 	}
 
 	for _, tt := range tests {
 		got := Truncate(tt.input, tt.max)
-		if got != tt.expected {
-			t.Errorf("Truncate(%q, %d) = %q, want %q", tt.input, tt.max, got, tt.expected)
+		if !strings.Contains(got, tt.contains) {
+			t.Errorf("Truncate(%q, %d) = %q, expected to contain %q", tt.input, tt.max, got, tt.contains)
+		}
+		if runewidth.StringWidth(got) > tt.max {
+			t.Errorf("Truncate(%q, %d) = %q, width %d exceeds max", tt.input, tt.max, got, runewidth.StringWidth(got))
 		}
 	}
 }
@@ -96,11 +99,12 @@ func TestGetActionText(t *testing.T) {
 func TestActionTextAlignment(t *testing.T) {
 	actions := []string{"read_now", "later", "archive", "delete", "needs_review", ""}
 
+	// All action texts should fit within 10 chars (column width)
 	for _, action := range actions {
 		text := getActionText(action)
 		width := runewidth.StringWidth(text)
-		if width != 12 {
-			t.Errorf("action '%s' text '%s' has width %d, expected 12", action, text, width)
+		if width > 10 {
+			t.Errorf("action '%s' text '%s' has width %d, exceeds column width 10", action, text, width)
 		}
 	}
 }
@@ -201,10 +205,10 @@ func TestGetPriorityText(t *testing.T) {
 		contains string
 	}{
 		{"high", "High"},
-		{"medium", "Medium"},
+		{"medium", "Med"},
 		{"low", "Low"},
-		{"", "None"},
-		{"unknown", "None"},
+		{"", "—"},
+		{"unknown", "—"},
 	}
 
 	for _, tt := range tests {
@@ -213,4 +217,97 @@ func TestGetPriorityText(t *testing.T) {
 			t.Errorf("getPriorityText(%q) = %q, expected to contain %q", tt.priority, text, tt.contains)
 		}
 	}
+}
+
+func TestFormatInfo(t *testing.T) {
+	tests := []struct {
+		readingTime string
+		wordCount   int
+		contains    string
+		empty       bool
+	}{
+		{"5 min", 2500, "5 min", false},
+		{"5 min", 2500, "2500w", false},
+		{"5 min", 0, "5 min", false},
+		{"", 2500, "2500w", false},
+		{"", 0, "", true},
+	}
+
+	for _, tt := range tests {
+		got := formatInfo(tt.readingTime, tt.wordCount)
+		if tt.empty && got != "" {
+			t.Errorf("formatInfo(%q, %d) = %q, expected empty", tt.readingTime, tt.wordCount, got)
+		}
+		if !tt.empty && !strings.Contains(got, tt.contains) {
+			t.Errorf("formatInfo(%q, %d) = %q, expected to contain %q", tt.readingTime, tt.wordCount, got, tt.contains)
+		}
+	}
+}
+
+func TestDetailView(t *testing.T) {
+	lv := NewListView(80, 24)
+	styles := DefaultStyles()
+
+	items := []Item{
+		{
+			ID:          "1",
+			Title:       "Test Article",
+			URL:         "https://example.com/article",
+			Summary:     "This is a test summary",
+			Category:    "article",
+			Source:      "rss",
+			WordCount:   1500,
+			ReadingTime: "5 min",
+			Tags:        []string{"go", "tui"},
+		},
+	}
+	lv.SetItems(items)
+
+	detail := lv.DetailView(80, styles)
+	if detail == "" {
+		t.Error("expected non-empty detail view")
+	}
+	if !strings.Contains(detail, "Test Article") {
+		t.Error("expected detail to contain title")
+	}
+	if !strings.Contains(detail, "example.com") {
+		t.Error("expected detail to contain URL")
+	}
+	if !strings.Contains(detail, "test summary") {
+		t.Error("expected detail to contain summary")
+	}
+	if !strings.Contains(detail, "1500 words") {
+		t.Error("expected detail to contain word count")
+	}
+}
+
+func TestDetailViewEmpty(t *testing.T) {
+	lv := NewListView(80, 24)
+	styles := DefaultStyles()
+
+	// No items — should return empty
+	detail := lv.DetailView(80, styles)
+	if detail != "" {
+		t.Errorf("expected empty detail view, got %q", detail)
+	}
+}
+
+func TestDetailViewMinimalItem(t *testing.T) {
+	lv := NewListView(80, 24)
+	styles := DefaultStyles()
+
+	items := []Item{{ID: "1", Title: "Minimal"}}
+	lv.SetItems(items)
+
+	detail := lv.DetailView(80, styles)
+	if !strings.Contains(detail, "Minimal") {
+		t.Error("expected detail to contain title")
+	}
+}
+
+func TestUpdateTableStyles(t *testing.T) {
+	lv := NewListView(80, 24)
+	// Should not panic
+	lv.UpdateTableStyles(Themes["dracula"])
+	lv.UpdateTableStyles(Themes["nord"])
 }

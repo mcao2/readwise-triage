@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,13 +20,17 @@ type ListView struct {
 }
 
 func listColumns(width int) []table.Column {
+	titleWidth := width - 50
+	if titleWidth < 20 {
+		titleWidth = 20
+	}
 	return []table.Column{
-		{Title: " ", Width: 3},
-		{Title: "Action", Width: 12},
-		{Title: "Priority", Width: 12},
-		{Title: "Category", Width: 12},
-		{Title: "Info", Width: 18},
-		{Title: "Title", Width: width - 65},
+		{Title: " ", Width: 2},
+		{Title: "Action", Width: 10},
+		{Title: "Pri", Width: 8},
+		{Title: "Category", Width: 10},
+		{Title: "Info", Width: 14},
+		{Title: "Title", Width: titleWidth},
 	}
 }
 
@@ -37,7 +42,7 @@ func NewListView(width, height int) ListView {
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
 		BorderBottom(true).
-		Bold(false)
+		Bold(true)
 	s.Selected = s.Selected.
 		Foreground(lipgloss.Color("229")).
 		Background(lipgloss.Color("57")).
@@ -58,6 +63,22 @@ func NewListView(width, height int) ListView {
 	}
 }
 
+// UpdateTableStyles updates the table styles to match the current theme
+func (lv *ListView) UpdateTableStyles(theme Theme) {
+	s := table.DefaultStyles()
+	s.Header = s.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(theme.Subtle)).
+		BorderBottom(true).
+		Bold(true).
+		Foreground(lipgloss.Color(theme.Primary))
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color(theme.Background)).
+		Background(lipgloss.Color(theme.Primary)).
+		Bold(false)
+	lv.table.SetStyles(s)
+}
+
 func (lv *ListView) SetItems(items []Item) {
 	lv.items = items
 	lv.updateRows()
@@ -66,25 +87,38 @@ func (lv *ListView) SetItems(items []Item) {
 func (lv *ListView) updateRows() {
 	rows := make([]table.Row, len(lv.items))
 	for i, item := range lv.items {
-		selected := "[ ]"
+		sel := " "
 		if lv.selected[i] {
-			selected = "[x]"
+			sel = "●"
 		}
 
-		actionText := runewidth.FillRight(getActionText(item.Action), 12)
-		priorityText := runewidth.FillRight(getPriorityText(item.Priority), 12)
-		category := Truncate(item.Category, 12)
-		info := fmt.Sprintf("%s | %dw", Truncate(item.ReadingTime, 6), item.WordCount)
-		title := Truncate(item.Title, lv.width-70)
+		actionText := runewidth.FillRight(getActionText(item.Action), 10)
+		priorityText := runewidth.FillRight(getPriorityText(item.Priority), 8)
+		category := Truncate(item.Category, 10)
+		info := formatInfo(item.ReadingTime, item.WordCount)
+		title := Truncate(item.Title, lv.width-55)
 
-		rows[i] = table.Row{selected, actionText, priorityText, category, info, title}
+		rows[i] = table.Row{sel, actionText, priorityText, category, info, title}
 	}
 	lv.table.SetRows(rows)
 }
 
+func formatInfo(readingTime string, wordCount int) string {
+	if readingTime != "" && wordCount > 0 {
+		return fmt.Sprintf("%s|%dw", Truncate(readingTime, 5), wordCount)
+	}
+	if readingTime != "" {
+		return readingTime
+	}
+	if wordCount > 0 {
+		return fmt.Sprintf("%dw", wordCount)
+	}
+	return ""
+}
+
 func Truncate(s string, maxLen int) string {
 	if runewidth.StringWidth(s) > maxLen {
-		return runewidth.Truncate(s, maxLen, "...")
+		return runewidth.Truncate(s, maxLen, "…")
 	}
 	return s
 }
@@ -92,17 +126,17 @@ func Truncate(s string, maxLen int) string {
 func getActionText(action string) string {
 	switch action {
 	case "read_now":
-		return "🔥 Read     "
+		return "🔥 Read"
 	case "later":
-		return "⏰ Later    "
+		return "⏰ Later"
 	case "archive":
-		return "📁 Archive  "
+		return "📁 Archive"
 	case "delete":
-		return "❌ Delete   "
+		return "❌ Delete"
 	case "needs_review":
-		return "👁  Review   "
+		return "👁  Review"
 	default:
-		return "❓ New      "
+		return "· New"
 	}
 }
 
@@ -111,12 +145,66 @@ func getPriorityText(priority string) string {
 	case "high":
 		return "🔴 High"
 	case "medium":
-		return "🟡 Medium"
+		return "🟡 Med"
 	case "low":
 		return "🟢 Low"
 	default:
-		return "⚪ None"
+		return "  —"
 	}
+}
+
+// DetailView renders a detail pane for the given item
+func (lv *ListView) DetailView(width int, styles Styles) string {
+	item := lv.GetItem(lv.cursor)
+	if item == nil {
+		return ""
+	}
+
+	var lines []string
+
+	// Title line
+	titleLine := styles.Highlight.Render(Truncate(item.Title, width-4))
+	lines = append(lines, titleLine)
+
+	// URL
+	if item.URL != "" {
+		urlLine := styles.Help.Render(Truncate(item.URL, width-4))
+		lines = append(lines, urlLine)
+	}
+
+	// Metadata line: source, category, reading time, word count
+	var meta []string
+	if item.Source != "" {
+		meta = append(meta, "src:"+item.Source)
+	}
+	if item.Category != "" {
+		meta = append(meta, "cat:"+item.Category)
+	}
+	if item.ReadingTime != "" {
+		meta = append(meta, item.ReadingTime)
+	}
+	if item.WordCount > 0 {
+		meta = append(meta, fmt.Sprintf("%d words", item.WordCount))
+	}
+	if len(item.Tags) > 0 {
+		meta = append(meta, "tags:"+strings.Join(item.Tags, ","))
+	}
+	if len(meta) > 0 {
+		metaLine := styles.Normal.Render(strings.Join(meta, "  ·  "))
+		lines = append(lines, metaLine)
+	}
+
+	// Summary (truncated to 2 lines)
+	if item.Summary != "" {
+		summary := item.Summary
+		maxLen := (width - 4) * 2
+		if len(summary) > maxLen {
+			summary = summary[:maxLen] + "…"
+		}
+		lines = append(lines, styles.Normal.Render(summary))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (lv ListView) Cursor() int {

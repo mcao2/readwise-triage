@@ -457,10 +457,10 @@ func TestUpdateRequestWithTags(t *testing.T) {
 			Tags:     []string{"golang", "tutorial"},
 		},
 		{
-			ID:       "2",
-			Title:    "Item 2",
-			Action:   "needs_review",
-			Tags:     []string{"paywalled"},
+			ID:     "2",
+			Title:  "Item 2",
+			Action: "needs_review",
+			Tags:   []string{"paywalled"},
 		},
 	}
 	m.state = StateReviewing
@@ -707,7 +707,7 @@ func TestAllViewRendering(t *testing.T) {
 		{"confirming", func(m *Model) { m.state = StateConfirming }},
 		{"updating", func(m *Model) {
 			m.state = StateUpdating
-			m.progress = 0.5
+			m.updateProgress = 0.5
 			m.statusMessage = "Updating..."
 		}},
 		{"done", func(m *Model) {
@@ -1113,8 +1113,8 @@ func TestConfigViewWithError(t *testing.T) {
 	m.state = StateConfig
 	m.statusMessage = "some error"
 	view := m.View()
-	if !strings.Contains(view, "Error") {
-		t.Error("expected config view to show error")
+	if !strings.Contains(view, "some error") {
+		t.Error("expected config view to show error message")
 	}
 }
 
@@ -1182,8 +1182,8 @@ func TestHelpKey(t *testing.T) {
 func TestModelInit(t *testing.T) {
 	m := NewModel()
 	cmd := m.Init()
-	if cmd != nil {
-		t.Error("expected nil cmd from Init")
+	if cmd == nil {
+		t.Error("expected non-nil cmd from Init (spinner tick)")
 	}
 }
 
@@ -1473,3 +1473,194 @@ func TestExportItemsToJSON_AllTriaged(t *testing.T) {
 	}
 }
 
+func TestHelpToggle(t *testing.T) {
+	m := NewModel()
+	m.state = StateReviewing
+	m.items = []Item{{ID: "1", Title: "Test"}}
+	m.listView.SetItems(m.items)
+
+	if m.showHelp {
+		t.Error("expected showHelp false initially")
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	if !m.showHelp {
+		t.Error("expected showHelp true after '?'")
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	if m.showHelp {
+		t.Error("expected showHelp false after second '?'")
+	}
+}
+
+func TestReviewingViewWithHelp(t *testing.T) {
+	m := NewModel()
+	m.state = StateReviewing
+	m.width = 100
+	m.height = 40
+	m.items = []Item{{ID: "1", Title: "Test"}}
+	m.listView.SetItems(m.items)
+
+	// Without help overlay
+	view := m.View()
+	if !strings.Contains(view, "navigate") {
+		t.Error("expected footer help to contain 'navigate'")
+	}
+
+	// With help overlay
+	m.showHelp = true
+	view = m.View()
+	if !strings.Contains(view, "read now") {
+		t.Error("expected full help to contain 'read now'")
+	}
+	if !strings.Contains(view, "archive") {
+		t.Error("expected full help to contain 'archive'")
+	}
+}
+
+func TestFetchingViewSpinner(t *testing.T) {
+	m := NewModel()
+	m.state = StateFetching
+	view := m.View()
+	if !strings.Contains(view, "Loading from Readwise") {
+		t.Error("expected fetching view to contain loading text")
+	}
+}
+
+func TestUpdatingViewProgress(t *testing.T) {
+	m := NewModel()
+	m.state = StateUpdating
+	m.updateProgress = 0.75
+	m.statusMessage = "Updated 3/4 items"
+	view := m.View()
+	if !strings.Contains(view, "75%") {
+		t.Error("expected updating view to show percentage")
+	}
+	if !strings.Contains(view, "Updated 3/4") {
+		t.Error("expected updating view to show status message")
+	}
+}
+
+func TestConfigViewCard(t *testing.T) {
+	m := NewModel()
+	m.state = StateConfig
+	m.width = 80
+	view := m.View()
+	if !strings.Contains(view, "Readwise Triage") {
+		t.Error("expected config view to contain app title")
+	}
+	if !strings.Contains(view, "mode") || !strings.Contains(view, "theme") {
+		t.Error("expected config view help to contain mode and theme")
+	}
+}
+
+func TestDoneViewCheckmark(t *testing.T) {
+	m := NewModel()
+	m.state = StateDone
+	m.statusMessage = "Updated 5 items"
+	view := m.View()
+	if !strings.Contains(view, "Complete") {
+		t.Error("expected done view to contain Complete")
+	}
+	if !strings.Contains(view, "Updated 5 items") {
+		t.Error("expected done view to contain status message")
+	}
+}
+
+func TestMessageViewIcons(t *testing.T) {
+	m := NewModel()
+	m.state = StateMessage
+	m.messageType = "error"
+	m.statusMessage = "something broke"
+	view := m.View()
+	if !strings.Contains(view, "something broke") {
+		t.Error("expected error message view to contain message")
+	}
+
+	m.messageType = "success"
+	m.statusMessage = "it worked"
+	view = m.View()
+	if !strings.Contains(view, "it worked") {
+		t.Error("expected success message view to contain message")
+	}
+}
+
+func TestReviewingViewDetailPane(t *testing.T) {
+	m := NewModel()
+	m.state = StateReviewing
+	m.width = 100
+	m.height = 40
+	m.items = []Item{
+		{
+			ID:          "1",
+			Title:       "Interesting Article",
+			URL:         "https://example.com/article",
+			Summary:     "A great read about Go",
+			Category:    "article",
+			Source:      "rss",
+			WordCount:   2000,
+			ReadingTime: "8 min",
+		},
+	}
+	m.listView.SetItems(m.items)
+	m.listView.SetWidthHeight(100, 40)
+
+	view := m.View()
+	if !strings.Contains(view, "Interesting Article") {
+		t.Error("expected reviewing view to contain item title in detail pane")
+	}
+	if !strings.Contains(view, "example.com") {
+		t.Error("expected reviewing view to contain URL in detail pane")
+	}
+}
+
+func TestReviewingViewBatchIndicator(t *testing.T) {
+	m := NewModel()
+	m.state = StateReviewing
+	m.width = 100
+	m.height = 40
+	m.items = []Item{
+		{ID: "1", Title: "Item 1"},
+		{ID: "2", Title: "Item 2"},
+	}
+	m.listView.SetItems(m.items)
+	m.listView.SetWidthHeight(100, 40)
+
+	// Select items to enter batch mode
+	m.listView.SetCursor(0)
+	m.listView.ToggleSelection()
+	m.batchMode = true
+
+	view := m.View()
+	if !strings.Contains(view, "1 selected") {
+		t.Error("expected batch indicator in header")
+	}
+}
+
+func TestRenderHelpLine(t *testing.T) {
+	m := NewModel()
+	entries := []helpEntry{
+		{"j/k", "navigate"},
+		{"q", "quit"},
+	}
+	line := m.renderHelpLine(entries)
+	if line == "" {
+		t.Error("expected non-empty help line")
+	}
+	if !strings.Contains(line, "navigate") {
+		t.Error("expected help line to contain 'navigate'")
+	}
+	if !strings.Contains(line, "quit") {
+		t.Error("expected help line to contain 'quit'")
+	}
+}
+
+func TestSpinnerUpdate(t *testing.T) {
+	m := NewModel()
+	// Spinner tick should be handled without error
+	_, cmd := m.Update(m.spinner.Tick())
+	if cmd == nil {
+		t.Error("expected spinner tick to return a command")
+	}
+}

@@ -17,6 +17,7 @@ type Theme struct {
 	Success    string
 	Error      string
 	Background string
+	Subtle     string // Dimmed text for borders, separators
 }
 
 // Available themes
@@ -31,6 +32,7 @@ var Themes = map[string]Theme{
 		Success:    "#04B575",
 		Error:      "#FF0000",
 		Background: "#000000",
+		Subtle:     "#4A4A4A",
 	},
 	"catppuccin": {
 		Name:       "Catppuccin",
@@ -42,6 +44,7 @@ var Themes = map[string]Theme{
 		Success:    "#A6E3A1",
 		Error:      "#F38BA8",
 		Background: "#1E1E2E",
+		Subtle:     "#45475A",
 	},
 	"dracula": {
 		Name:       "Dracula",
@@ -53,6 +56,7 @@ var Themes = map[string]Theme{
 		Success:    "#50FA7B",
 		Error:      "#FF5555",
 		Background: "#282A36",
+		Subtle:     "#44475A",
 	},
 	"nord": {
 		Name:       "Nord",
@@ -64,6 +68,7 @@ var Themes = map[string]Theme{
 		Success:    "#A3BE8C",
 		Error:      "#BF616A",
 		Background: "#2E3440",
+		Subtle:     "#3B4252",
 	},
 	"gruvbox": {
 		Name:       "Gruvbox",
@@ -75,6 +80,7 @@ var Themes = map[string]Theme{
 		Success:    "#98971A",
 		Error:      "#CC241D",
 		Background: "#282828",
+		Subtle:     "#3C3836",
 	},
 }
 
@@ -87,11 +93,26 @@ type Styles struct {
 	Selected  lipgloss.Style
 	Error     lipgloss.Style
 	Success   lipgloss.Style
-	theme     Theme
+
+	// Layout styles
+	HeaderBar lipgloss.Style
+	FooterBar lipgloss.Style
+	Border    lipgloss.Style
+	Card      lipgloss.Style
+	Detail    lipgloss.Style
+
+	// Help key styles
+	HelpKey  lipgloss.Style
+	HelpDesc lipgloss.Style
+	HelpSep  lipgloss.Style
+
+	theme Theme
 }
 
 // NewStyles creates styles from a theme
 func NewStyles(theme Theme) Styles {
+	subtle := lipgloss.Color(theme.Subtle)
+
 	return Styles{
 		Title: lipgloss.NewStyle().
 			Bold(true).
@@ -119,6 +140,56 @@ func NewStyles(theme Theme) Styles {
 
 		Success: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.Success)),
+
+		// Header bar: primary color text, bottom border
+		HeaderBar: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Primary)).
+			Bold(true).
+			PaddingLeft(1).
+			PaddingRight(1).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderBottom(true).
+			BorderForeground(subtle),
+
+		// Footer bar: help text area with top border
+		FooterBar: lipgloss.NewStyle().
+			PaddingLeft(1).
+			PaddingRight(1).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderTop(true).
+			BorderForeground(subtle),
+
+		// Rounded border for panels
+		Border: lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(subtle).
+			Padding(1, 2),
+
+		// Card style for config screen
+		Card: lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(theme.Primary)).
+			Padding(1, 3),
+
+		// Detail pane below table
+		Detail: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Text)).
+			PaddingLeft(1).
+			PaddingRight(1).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderTop(true).
+			BorderForeground(subtle),
+
+		// Help key styling
+		HelpKey: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Primary)).
+			Bold(true),
+
+		HelpDesc: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Help)),
+
+		HelpSep: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Subtle)),
 
 		theme: theme,
 	}

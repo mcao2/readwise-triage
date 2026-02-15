@@ -331,4 +331,3 @@ func TestImportTriageResults_InvalidAction(t *testing.T) {
 		t.Errorf("expected 0 items applied, got %d", applied)
 	}
 }
-
