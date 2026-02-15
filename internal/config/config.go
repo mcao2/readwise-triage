@@ -1,29 +1,126 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Config holds application configuration
 type Config struct {
-	ReadwiseToken    string
-	PerplexityAPIKey string
-	DefaultDaysAgo   int
+	ReadwiseToken    string `yaml:"readwise_token"`
+	PerplexityAPIKey string `yaml:"perplexity_api_key"`
+	DefaultDaysAgo   int    `yaml:"default_days_ago"`
 }
 
-// Load loads configuration from environment variables
+// Load loads configuration from config file and environment variables
+// Environment variables take precedence over config file values
 func Load() (*Config, error) {
-	daysAgo := 7
-	if daysStr := os.Getenv("DEFAULT_DAYS_AGO"); daysStr != "" {
-		if d, err := strconv.Atoi(daysStr); err == nil {
-			daysAgo = d
-		}
+	cfg := &Config{
+		DefaultDaysAgo: 7,
 	}
 
-	return &Config{
-		ReadwiseToken:    os.Getenv("READWISE_TOKEN"),
-		PerplexityAPIKey: os.Getenv("PERPLEXITY_API_KEY"),
-		DefaultDaysAgo:   daysAgo,
-	}, nil
+	// Load from config file first
+	if err := cfg.loadFromFile(); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to load config file: %w", err)
+	}
+
+	// Environment variables override config file
+	cfg.loadFromEnv()
+
+	return cfg, nil
+}
+
+func (c *Config) loadFromFile() error {
+	configPath := getConfigPath()
+	if configPath == "" {
+		return os.ErrNotExist
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+
+	return yaml.Unmarshal(data, c)
+}
+
+func (c *Config) loadFromEnv() {
+	if token := os.Getenv("READWISE_TOKEN"); token != "" {
+		c.ReadwiseToken = token
+	}
+	if apiKey := os.Getenv("PERPLEXITY_API_KEY"); apiKey != "" {
+		c.PerplexityAPIKey = apiKey
+	}
+	if daysStr := os.Getenv("DEFAULT_DAYS_AGO"); daysStr != "" {
+		if d, err := strconv.Atoi(daysStr); err == nil {
+			c.DefaultDaysAgo = d
+		}
+	}
+}
+
+// getConfigPath returns the path to the config file
+// Priority: $READWISE_TRIAGE_CONFIG > ~/.config/readwise-triage/config.yaml
+func getConfigPath() string {
+	// Check environment variable override
+	if configPath := os.Getenv("READWISE_TRIAGE_CONFIG"); configPath != "" {
+		return configPath
+	}
+
+	// Default location
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	return filepath.Join(home, ".config", "readwise-triage", "config.yaml")
+}
+
+// EnsureConfigDir ensures the config directory exists
+func EnsureConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	configDir := filepath.Join(home, ".config", "readwise-triage")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return "", err
+	}
+
+	return configDir, nil
+}
+
+// SaveExampleConfig creates an example config file
+func SaveExampleConfig() error {
+	configDir, err := EnsureConfigDir()
+	if err != nil {
+		return err
+	}
+
+	configPath := filepath.Join(configDir, "config.yaml")
+
+	// Check if file already exists
+	if _, err := os.Stat(configPath); err == nil {
+		return nil // Already exists, don't overwrite
+	}
+
+	example := `# Readwise Triage Configuration
+# Get your token at: https://readwise.io/access_token
+
+# Required: Your Readwise API token
+readwise_token: "your_token_here"
+
+# Optional: Perplexity API key for LLM auto-triage
+# Get your key at: https://www.perplexity.ai/settings/api
+perplexity_api_key: "your_api_key_here"
+
+# Optional: Default number of days to fetch (default: 7)
+default_days_ago: 7
+`
+
+	return os.WriteFile(configPath, []byte(example), 0600)
 }

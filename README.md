@@ -45,14 +45,40 @@ go install ./cmd/readwise-triage
 
 ## Configuration
 
-Set the following environment variables:
+You can configure `readwise-triage` using either **environment variables** or a **config file**. Environment variables take precedence over config file values.
+
+### Config File
+
+Create a config file at `~/.config/readwise-triage/config.yaml`:
+
+```yaml
+# Required: Your Readwise API token
+# Get your token at: https://readwise.io/access_token
+readwise_token: "your_token_here"
+
+# Optional: Perplexity API key for LLM auto-triage
+# Get your key at: https://www.perplexity.ai/settings/api
+perplexity_api_key: "your_api_key_here"
+
+# Optional: Default number of days to fetch (default: 7)
+default_days_ago: 7
+```
+
+To use a custom config file location, set the `READWISE_TRIAGE_CONFIG` environment variable:
+
+```bash
+export READWISE_TRIAGE_CONFIG="/path/to/your/config.yaml"
+```
+
+### Environment Variables
+
+Alternatively, you can use environment variables (which override config file values):
 
 ```bash
 export READWISE_TOKEN="your_readwise_token_here"
 export PERPLEXITY_API_KEY="your_perplexity_api_key_here"  # Optional for manual mode
+export DEFAULT_DAYS_AGO=7  # Optional
 ```
-
-Get your Readwise token at: https://readwise.io/access_token
 
 ## Usage
 
