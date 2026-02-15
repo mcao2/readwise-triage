@@ -27,10 +27,10 @@ type ListView struct {
 }
 
 func listColumns(width int) []table.Column {
-	// Each cell has Padding(0,1) adding 2 chars per column (6 columns = 12 extra).
+	// Each cell has Padding(0,1) adding 2 chars per column (7 columns = 14 extra).
 	// Subtract 2 more to avoid hitting exact terminal width (causes implicit wraps).
-	fixedWidth := 2 + 10 + 8 + 10 + 14 // non-title columns
-	padding := 6*2 + 2                   // 6 columns × 2 chars padding each + 2 safety margin
+	fixedWidth := 2 + 10 + 8 + 10 + 14 + 20 // non-title columns
+	padding := 7*2 + 2                        // 7 columns × 2 chars padding each + 2 safety margin
 	titleWidth := width - fixedWidth - padding
 	if titleWidth < 20 {
 		titleWidth = 20
@@ -41,6 +41,7 @@ func listColumns(width int) []table.Column {
 		{Title: "Priority", Width: 8},
 		{Title: "Category", Width: 10},
 		{Title: "Info", Width: 14},
+		{Title: "Tags", Width: 20},
 		{Title: "Title", Width: titleWidth},
 	}
 }
@@ -132,9 +133,10 @@ func (lv *ListView) updateRows() {
 		priorityText := runewidth.FillRight(getPriorityText(item.Priority), 8)
 		category := Truncate(item.Category, 10)
 		info := formatInfo(item.ReadingTime, item.WordCount)
-		title := Truncate(item.Title, lv.width-58)
+		tags := Truncate(strings.Join(item.Tags, ", "), 20)
+		title := Truncate(item.Title, lv.width-80)
 
-		rows[i] = table.Row{sel, actionText, priorityText, category, info, title}
+		rows[i] = table.Row{sel, actionText, priorityText, category, info, tags, title}
 	}
 	lv.table.SetRows(rows)
 }
