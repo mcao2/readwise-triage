@@ -218,3 +218,117 @@ func TestImportTriageResults_MissingTitle(t *testing.T) {
 		t.Errorf("expected action 'read_now', got %s", m.items[0].Action)
 	}
 }
+
+func TestImportTriageResults_NeedsReview(t *testing.T) {
+	m := &Model{
+		items: []Item{
+			{ID: "1", Title: "Paywalled Article"},
+		},
+	}
+	m.listView = NewListView(80, 20)
+	m.listView.SetItems(m.items)
+
+	jsonData := `[
+		{
+			"id": "1",
+			"title": "Paywalled Article",
+			"triage_decision": {
+				"action": "needs_review",
+				"priority": "medium",
+				"reason": "Content is paywalled, cannot assess value without full access"
+			}
+		}
+	]`
+
+	applied, err := m.ImportTriageResults(jsonData)
+	if err != nil {
+		t.Fatalf("ImportTriageResults failed: %v", err)
+	}
+	if applied != 1 {
+		t.Errorf("expected 1 item applied, got %d", applied)
+	}
+
+	if m.items[0].Action != "needs_review" {
+		t.Errorf("expected action 'needs_review', got %s", m.items[0].Action)
+	}
+	if m.items[0].Priority != "medium" {
+		t.Errorf("expected priority 'medium', got %s", m.items[0].Priority)
+	}
+}
+
+func TestImportTriageResults_WithSuggestedTags(t *testing.T) {
+	m := &Model{
+		items: []Item{
+			{ID: "1", Title: "Tech Article"},
+		},
+	}
+	m.listView = NewListView(80, 20)
+	m.listView.SetItems(m.items)
+
+	jsonData := `[
+		{
+			"id": "1",
+			"title": "Tech Article",
+			"triage_decision": {
+				"action": "read_now",
+				"priority": "high"
+			},
+			"metadata_enhancement": {
+				"suggested_tags": ["golang", "performance", "tutorial"]
+			}
+		}
+	]`
+
+	applied, err := m.ImportTriageResults(jsonData)
+	if err != nil {
+		t.Fatalf("ImportTriageResults failed: %v", err)
+	}
+	if applied != 1 {
+		t.Errorf("expected 1 item applied, got %d", applied)
+	}
+
+	if m.items[0].Action != "read_now" {
+		t.Errorf("expected action 'read_now', got %s", m.items[0].Action)
+	}
+
+	if len(m.items[0].Tags) != 3 {
+		t.Errorf("expected 3 tags, got %d", len(m.items[0].Tags))
+	}
+
+	expectedTags := map[string]bool{"golang": true, "performance": true, "tutorial": true}
+	for _, tag := range m.items[0].Tags {
+		if !expectedTags[tag] {
+			t.Errorf("unexpected tag: %s", tag)
+		}
+	}
+}
+
+func TestImportTriageResults_InvalidAction(t *testing.T) {
+	m := &Model{
+		items: []Item{
+			{ID: "1", Title: "Item 1"},
+		},
+	}
+	m.listView = NewListView(80, 20)
+	m.listView.SetItems(m.items)
+
+	jsonData := `[
+		{
+			"id": "1",
+			"title": "Item 1",
+			"triage_decision": {
+				"action": "invalid_action",
+				"priority": "high"
+			}
+		}
+	]`
+
+	applied, err := m.ImportTriageResults(jsonData)
+	if err == nil {
+		t.Fatal("expected error for invalid action, got nil")
+	}
+	if applied != 0 {
+		t.Errorf("expected 0 items applied, got %d", applied)
+	}
+}
+

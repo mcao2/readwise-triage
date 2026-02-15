@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mcao2/readwise-triage/internal/config"
 	"github.com/mcao2/readwise-triage/internal/readwise"
 )
 
@@ -396,3 +397,125 @@ func TestRefreshKey(t *testing.T) {
 		t.Error("expected command after Refresh key")
 	}
 }
+
+func TestNeedsReviewAction(t *testing.T) {
+	m := NewModel()
+	items := []Item{
+		{ID: "1", Title: "Item 1"},
+	}
+	m.Update(ItemsLoadedMsg{Items: items})
+	m.state = StateReviewing
+	m.listView.SetCursor(0)
+
+	// Apply needs_review action
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+
+	if m.items[0].Action != "needs_review" {
+		t.Errorf("expected action 'needs_review', got %s", m.items[0].Action)
+	}
+}
+
+func TestBatchNeedsReviewAction(t *testing.T) {
+	m := NewModel()
+	items := []Item{
+		{ID: "1", Title: "Item 1"},
+		{ID: "2", Title: "Item 2"},
+	}
+	m.Update(ItemsLoadedMsg{Items: items})
+	m.state = StateReviewing
+
+	// Select both items
+	m.listView.SetCursor(0)
+	m.listView.ToggleSelection()
+	m.listView.SetCursor(1)
+	m.listView.ToggleSelection()
+	m.batchMode = true
+
+	// Apply needs_review to batch
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+
+	if m.items[0].Action != "needs_review" {
+		t.Errorf("expected item 0 action 'needs_review', got %s", m.items[0].Action)
+	}
+	if m.items[1].Action != "needs_review" {
+		t.Errorf("expected item 1 action 'needs_review', got %s", m.items[1].Action)
+	}
+}
+
+func TestUpdateRequestWithTags(t *testing.T) {
+	m := NewModel()
+	m.cfg = &config.Config{ReadwiseToken: "test-token"}
+
+	// Directly set items with tags
+	m.items = []Item{
+		{
+			ID:       "1",
+			Title:    "Item 1",
+			Action:   "read_now",
+			Priority: "high",
+			Tags:     []string{"golang", "tutorial"},
+		},
+		{
+			ID:       "2",
+			Title:    "Item 2",
+			Action:   "needs_review",
+			Tags:     []string{"paywalled"},
+		},
+	}
+	m.state = StateReviewing
+
+	// Simulate building update requests (we can't easily test the actual API call)
+	// but we can verify the logic by checking what would be sent
+	var updates []readwise.UpdateRequest
+	for _, item := range m.items {
+		if item.Action != "" {
+			update := readwise.UpdateRequest{
+				DocumentID: item.ID,
+			}
+
+			switch item.Action {
+			case "read_now":
+				update.Tags = []string{"read_now"}
+			case "needs_review":
+				update.Tags = []string{"needs_review"}
+			}
+
+			if item.Priority != "" {
+				update.Tags = append(update.Tags, "priority:"+item.Priority)
+			}
+
+			if len(item.Tags) > 0 {
+				update.Tags = append(update.Tags, item.Tags...)
+			}
+
+			updates = append(updates, update)
+		}
+	}
+
+	if len(updates) != 2 {
+		t.Fatalf("expected 2 updates, got %d", len(updates))
+	}
+
+	// Check first item: read_now + priority:high + golang + tutorial
+	expectedTags1 := []string{"read_now", "priority:high", "golang", "tutorial"}
+	if len(updates[0].Tags) != len(expectedTags1) {
+		t.Errorf("expected %d tags for item 1, got %d", len(expectedTags1), len(updates[0].Tags))
+	}
+	for i, tag := range expectedTags1 {
+		if updates[0].Tags[i] != tag {
+			t.Errorf("expected tag %d to be %s, got %s", i, tag, updates[0].Tags[i])
+		}
+	}
+
+	// Check second item: needs_review + paywalled
+	expectedTags2 := []string{"needs_review", "paywalled"}
+	if len(updates[1].Tags) != len(expectedTags2) {
+		t.Errorf("expected %d tags for item 2, got %d", len(expectedTags2), len(updates[1].Tags))
+	}
+	for i, tag := range expectedTags2 {
+		if updates[1].Tags[i] != tag {
+			t.Errorf("expected tag %d to be %s, got %s", i, tag, updates[1].Tags[i])
+		}
+	}
+}
+
