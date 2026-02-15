@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -223,20 +224,20 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) startFetching() tea.Cmd {
-	return tea.Batch(
+	return tea.Sequence(
 		func() tea.Msg {
 			return StateChangeMsg{State: StateFetching}
 		},
-		func() tea.Msg {
-			// Simulate fetching for now - replace with actual fetch
-			// In production, this would call the readwise client
+		tea.Tick(100, func(time.Time) tea.Msg {
+			// Simulate API delay then load items
 			return ItemsLoadedMsg{
 				Items: []Item{
-					{ID: "1", Title: "Sample Article 1", Action: "", Priority: ""},
-					{ID: "2", Title: "Sample Article 2", Action: "", Priority: ""},
+					{ID: "1", Title: "Sample Article 1: Introduction to Go", Action: "read_now", Priority: "high"},
+					{ID: "2", Title: "Sample Article 2: Bubble Tea Tutorial", Action: "later", Priority: "medium"},
+					{ID: "3", Title: "Sample Article 3: Archived Reference", Action: "archive", Priority: "low"},
 				},
 			}
-		},
+		}),
 	)
 }
 
