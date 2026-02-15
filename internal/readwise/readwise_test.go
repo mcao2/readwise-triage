@@ -573,3 +573,165 @@ func TestDoRequestServerError(t *testing.T) {
 		t.Errorf("expected 3 attempts, got %d", mock.callCount)
 	}
 }
+
+func TestFlexibleTimeUnmarshal(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"RFC3339", `"2024-01-15T10:30:00Z"`, false},
+		{"datetime no tz", `"2024-01-15T10:30:00"`, false},
+		{"date only", `"2024-01-15"`, false},
+		{"invalid", `"not-a-date"`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ft FlexibleTime
+			err := ft.UnmarshalJSON([]byte(tt.input))
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if ft.Time.IsZero() {
+				t.Error("expected non-zero time")
+			}
+		})
+	}
+}
+
+func TestFlexibleTimeMarshal(t *testing.T) {
+	ft := FlexibleTime{}
+	ft.UnmarshalJSON([]byte(`"2024-01-15T10:30:00Z"`))
+
+	data, err := ft.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON failed: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("expected non-empty output")
+	}
+}
+
+func TestFlexibleTagsUnmarshalArray(t *testing.T) {
+	input := `["tag1", "tag2", "tag3"]`
+	var tags FlexibleTags
+	err := tags.UnmarshalJSON([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(tags) != 3 {
+		t.Errorf("expected 3 tags, got %d", len(tags))
+	}
+}
+
+func TestFlexibleTagsUnmarshalObject(t *testing.T) {
+	input := `{"golang": {}, "tutorial": {}, "api": {}}`
+	var tags FlexibleTags
+	err := tags.UnmarshalJSON([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(tags) != 3 {
+		t.Errorf("expected 3 tags from object, got %d", len(tags))
+	}
+}
+
+func TestFlexibleTagsUnmarshalInvalid(t *testing.T) {
+	input := `12345`
+	var tags FlexibleTags
+	err := tags.UnmarshalJSON([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(tags) != 0 {
+		t.Errorf("expected 0 tags on invalid input, got %d", len(tags))
+	}
+}
+
+func TestUpdateDocumentErrorStatus(t *testing.T) {
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusBadRequest, Body: io.NopCloser(bytes.NewReader([]byte(`bad request`)))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock), WithBaseURL("http://fake"))
+	err := client.UpdateDocument(UpdateRequest{
+		DocumentID: "doc1",
+		Location:   "archive",
+	})
+	if err == nil {
+		t.Error("expected error on 400 response")
+	}
+}
+
+func TestUpdateDocumentWithNotes(t *testing.T) {
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock), WithBaseURL("http://fake"))
+	err := client.UpdateDocument(UpdateRequest{
+		DocumentID: "doc1",
+		Notes:      "some notes",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	body, _ := io.ReadAll(mock.requests[0].Body)
+	var payload map[string]interface{}
+	json.Unmarshal(body, &payload)
+
+	if payload["notes"] != "some notes" {
+		t.Errorf("expected notes in payload, got %v", payload["notes"])
+	}
+}
+
+func TestGetInboxItemsNonOKStatus(t *testing.T) {
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusForbidden, Body: io.NopCloser(bytes.NewReader([]byte(`forbidden`)))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock), WithBaseURL("http://fake"))
+	_, err := client.GetInboxItems(FetchOptions{DaysAgo: 7, Location: "new"})
+	if err == nil {
+		t.Error("expected error on 403 response")
+	}
+}
+
+func TestGetInboxItemsDefaultOptions(t *testing.T) {
+	now := FlexibleTime{Time: time.Now()}
+	response := ListResponse{
+		Count:   1,
+		Results: []Item{{ID: "1", Title: "Test", SavedAt: now, CreatedAt: now, UpdatedAt: now}},
+	}
+	body, _ := json.Marshal(response)
+
+	mock := &mockHTTPClient{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(body))},
+		},
+	}
+
+	client, _ := NewClient("test-token", WithHTTPClient(mock))
+	// Pass zero values — should use defaults
+	items, err := client.GetInboxItems(FetchOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Errorf("expected 1 item, got %d", len(items))
+	}
+}
