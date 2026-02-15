@@ -82,12 +82,16 @@ type Model struct {
 
 // Item represents a displayable item in the list
 type Item struct {
-	ID       string
-	Title    string
-	Action   string
-	Priority string
-	URL      string
-	Summary  string
+	ID          string
+	Title       string
+	Action      string
+	Priority    string
+	URL         string
+	Summary     string
+	Category    string
+	Source      string
+	WordCount   int
+	ReadingTime string
 }
 
 // NewModel creates a new UI model
@@ -305,16 +309,33 @@ func (m Model) startFetching() tea.Cmd {
 			uiItems := make([]Item, len(items))
 			for i, item := range items {
 				uiItems[i] = Item{
-					ID:       item.ID,
-					Title:    item.Title,
-					Action:   "",
-					Priority: "",
-					URL:      item.URL,
-					Summary:  item.Summary,
+					ID:          item.ID,
+					Title:       item.Title,
+					Action:      "",
+					Priority:    "",
+					URL:         item.URL,
+					Summary:     item.Summary,
+					Category:    item.Category,
+					Source:      item.Source,
+					WordCount:   item.WordCount,
+					ReadingTime: item.ReadingTime,
 				}
 			}
 
 			return ItemsLoadedMsg{Items: uiItems}
+		},
+	)
+}
+
+func (m Model) startTriaging() tea.Cmd {
+	return tea.Sequence(
+		func() tea.Msg {
+			return StateChangeMsg{State: StateTriaging}
+		},
+		func() tea.Msg {
+			// TODO: Implement actual LLM triage with Perplexity API
+			// For now, simulate processing delay
+			return StateChangeMsg{State: StateReviewing}
 		},
 	)
 }
@@ -338,6 +359,11 @@ func (m Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case msg.String() == "b":
 		if len(m.listView.GetSelected()) > 0 {
 			m.state = StateBatchEditing
+		}
+	case msg.String() == "p":
+		// Trigger LLM triage for all items
+		if m.cfg != nil && m.cfg.PerplexityAPIKey != "" {
+			return m, m.startTriaging()
 		}
 	case keyMatches(msg, m.keys.Back):
 		return m, tea.Quit
@@ -462,7 +488,7 @@ func (m Model) reviewingView() string {
 	}
 
 	count := m.styles.Help.Render(fmt.Sprintf("Item %d of %d", m.cursor+1, len(m.items)))
-	help := m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • enter: edit • b: batch • q: quit")
+	help := m.styles.Help.Render("j/k: navigate • x: select • r/l/a/d: action • 1/2/3: priority • p: AI triage • enter: edit • b: batch • q: quit")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", list, "", count, help)
 }
