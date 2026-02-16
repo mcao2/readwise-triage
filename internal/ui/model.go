@@ -172,6 +172,11 @@ func NewModel() *Model {
 		feedLookback:  cfg.FeedDaysAgo,
 		fetchLocation: "new",
 	}
+
+	// Restore last-used location from config
+	if cfg.Location == "feed" {
+		m.fetchLocation = "feed"
+	}
 	m.listView = NewListView(80, 24)
 	m.listView.UpdateTableStyles(Themes[themeName])
 	return m
@@ -198,6 +203,13 @@ func (m *Model) saveLookback() {
 		} else {
 			m.cfg.InboxDaysAgo = m.inboxLookback
 		}
+		_ = m.cfg.Save()
+	}
+}
+
+func (m *Model) saveLocation() {
+	if m.cfg != nil {
+		m.cfg.Location = m.fetchLocation
 		_ = m.cfg.Save()
 	}
 }
@@ -274,26 +286,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) View() string {
+	var content string
+	centered := true
+
 	switch m.state {
 	case StateConfig:
-		return m.configView()
+		content = m.configView()
 	case StateFetching:
-		return m.fetchingView()
+		content = m.fetchingView()
 	case StateTriaging:
-		return m.triagingView()
+		content = m.triagingView()
 	case StateReviewing:
-		return m.reviewingView()
+		content = m.reviewingView()
+		centered = false
 	case StateConfirming:
-		return m.confirmingView()
+		content = m.confirmingView()
 	case StateUpdating:
-		return m.updatingView()
+		content = m.updatingView()
 	case StateDone:
-		return m.doneView()
+		content = m.doneView()
 	case StateMessage:
-		return m.messageView()
+		content = m.messageView()
 	default:
 		return "Unknown state"
 	}
+
+	if centered && m.width > 0 && m.height > 0 {
+		content = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+	}
+
+	return content
 }
 
 func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -386,6 +408,7 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.fetchLocation = "new"
 		}
+		m.saveLocation()
 	case keyMatches(msg, m.keys.Up):
 		*m.activeLookbackPtr() += 7
 		m.saveLookback()
