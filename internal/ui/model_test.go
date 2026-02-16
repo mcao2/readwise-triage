@@ -2238,6 +2238,54 @@ func TestTagEditingArrowKeys(t *testing.T) {
 	}
 }
 
+func TestTagEditingOptionDelete(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{{ID: "1", Title: "Item 1"}}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	for _, ch := range "go, rust, wasm" {
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	if m.tagsCursor != 14 {
+		t.Fatalf("expected tagsCursor 14, got %d", m.tagsCursor)
+	}
+
+	// Option+Delete: delete "wasm" (previous word from end)
+	m.Update(tea.KeyMsg{Type: tea.KeyBackspace, Alt: true})
+	if m.tagsInput != "go, rust, " {
+		t.Errorf("expected tagsInput %q, got %q", "go, rust, ", m.tagsInput)
+	}
+	if m.tagsCursor != 10 {
+		t.Errorf("expected tagsCursor 10, got %d", m.tagsCursor)
+	}
+
+	// Option+Delete again: delete ", rust, " back to word boundary
+	m.Update(tea.KeyMsg{Type: tea.KeyBackspace, Alt: true})
+	if m.tagsInput != "go, " {
+		t.Errorf("expected tagsInput %q, got %q", "go, ", m.tagsInput)
+	}
+	if m.tagsCursor != 4 {
+		t.Errorf("expected tagsCursor 4, got %d", m.tagsCursor)
+	}
+
+	// Option+Delete again: delete "go, " back to start
+	m.Update(tea.KeyMsg{Type: tea.KeyBackspace, Alt: true})
+	if m.tagsInput != "" {
+		t.Errorf("expected tagsInput %q, got %q", "", m.tagsInput)
+	}
+	if m.tagsCursor != 0 {
+		t.Errorf("expected tagsCursor 0, got %d", m.tagsCursor)
+	}
+
+	// Option+Delete at empty: no-op
+	m.Update(tea.KeyMsg{Type: tea.KeyBackspace, Alt: true})
+	if m.tagsInput != "" {
+		t.Errorf("expected tagsInput %q, got %q", "", m.tagsInput)
+	}
+}
+
 func TestTagEditingWordJump(t *testing.T) {
 	// Helper to set up a model in tag-editing mode with "go, rust, wasm"
 	setup := func() *Model {

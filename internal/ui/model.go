@@ -592,12 +592,18 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.editingTags = false
 			m.tagsInput = ""
 			m.tagsCursor = 0
-		case msg.Type == tea.KeyBackspace:
+		case msg.Type == tea.KeyBackspace && !msg.Alt:
 			if m.tagsCursor > 0 {
 				runes = append(runes[:m.tagsCursor-1], runes[m.tagsCursor:]...)
 				m.tagsCursor--
 				m.tagsInput = string(runes)
 			}
+		case s == "alt+backspace":
+			// Option+Delete: delete previous word
+			newPos := prevWordBoundary(runes, m.tagsCursor)
+			runes = append(runes[:newPos], runes[m.tagsCursor:]...)
+			m.tagsCursor = newPos
+			m.tagsInput = string(runes)
 		case s == "alt+left" || s == "alt+b":
 			m.tagsCursor = prevWordBoundary(runes, m.tagsCursor)
 		case s == "alt+right" || s == "alt+f":
