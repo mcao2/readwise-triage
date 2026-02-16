@@ -56,6 +56,9 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 - **Theme Propagation**: When cycling themes, update ALL theme-dependent components: `m.styles`, `m.listView.UpdateTableStyles()`, and `m.spinner.Style`. Missing any causes visual inconsistency.
 - **Layout Structure**: The reviewing view uses a header bar (app name + count), table, detail pane, status line, and footer. Use `strings.Join(parts, "\n")` to compose these (NOT `lipgloss.JoinVertical` — see Terminal Width below). Other views use `m.styles.Border` or `m.styles.Card` for centered panel layouts.
 - **Help System**: The `?` key toggles `m.showHelp` between a compact two-line footer (`renderReviewFooter`) and a full categorized overlay (`renderFullHelp`). Help entries use the `helpEntry{key, desc}` struct rendered via `renderHelpLine`.
+- **Popup Overlays**: Modal popups (e.g., tag editor) should overlay on top of the existing view, not replace it. Render the background view first, split into lines, then stamp the centered popup lines over the middle rows. Use `lipgloss.PlaceHorizontal` per-line for horizontal centering within the overlay.
+- **View Centering**: Non-review views (config, fetching, confirming, updating, done, message) are centered on screen via `lipgloss.Place(m.width, m.height, ...)` in the top-level `View()` method. Don't duplicate centering logic in individual view functions.
+- **macOS Terminal Key Sequences**: macOS terminals send ESC+b / ESC+f for Option+Left/Right (parsed by Bubble Tea as `alt+b`/`alt+f` with `KeyRunes` type), NOT `KeyLeft`/`KeyRight` with `Alt=true`. Similarly, Option+Delete comes through as `alt+backspace`. When handling modifier+key combos, match on `msg.String()` (e.g., `"alt+left"`, `"alt+b"`) to cover both CSI and ESC-letter sequences. Follow the pattern in `bubbles/textinput`.
 - **Detail Pane**: `ListView.DetailView()` renders item metadata below the table. It pads to a fixed `detailPaneHeight` (4 lines) so the total view height stays constant across items with varying metadata.
 - **Column Widths**: Let the table column `Width` handle padding — don't hardcode trailing spaces in cell text. Use `runewidth.FillRight` only to pad to the column width.
 - **Terminal Width — The Last Column Problem**: NEVER render any line at exactly the terminal width. When a line fills the last column, many terminal emulators (macOS Terminal, iTerm2, etc.) add an implicit line wrap, which breaks Bubble Tea's line tracking and causes visual corruption (stale content, multiple highlighted rows, header disappearing). Always use `m.width - 1` for `HeaderBar.Width()`, `FooterBar.Width()`, dividers, and ensure column widths + cell padding sum to less than terminal width. Avoid `lipgloss.JoinVertical` for full-screen layouts — it pads every line to the widest element's width, which can push lines to the terminal edge.
@@ -83,7 +86,7 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 ### 6. LLM Triage Pipeline
 - The LLM classifies items into actions: `delete`, `archive`, `later`, `read_now`, and `needs_review`.
 - **`needs_review`**: Escape hatch for items the LLM can't confidently classify (paywalled, ambiguous, insufficient context). Don't force every item into a definitive action.
-- **Suggested Tags**: Tags flow from LLM generation → triage import → Readwise update. They are appended alongside action-based tags during `UpdateDocument`.
+- **Suggested Tags**: Tags flow from LLM generation → triage import → Readwise update. They are appended alongside action-based tags during `UpdateDocument`. During import, tags matching action names (`read_now`, `later`, `archive`, `delete`, `needs_review`) are automatically filtered out to avoid redundancy.
 - **Token Efficiency**: Only generate LLM fields that are actually consumed downstream. Unused fields (e.g., `reading_guide`, `credibility_check`) waste tokens.
 
 ### 7. Persistence
@@ -91,7 +94,7 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 - The store persists the full `triage.Result` report for LLM-triaged items. `SetItem` takes a `*triage.Result` as the last parameter (nil for manual entries).
 - On first run, if a legacy `triage_store.json` exists it is auto-migrated into SQLite and renamed to `.bak`.
 - Writes are immediate (no explicit `Save()` needed). `Save()` is retained as a no-op for compatibility.
-- Configuration is in `config.yaml` in the same directory.
+- Configuration is in `config.yaml` in the same directory. Preferences like location, lookback days, and theme are persisted here automatically when changed in the TUI.
 - Use `internal/config` packages to manage these files.
 - **Schema changes**: If you modify the `triage_entries` table schema, add an `ALTER TABLE` migration in `LoadTriageStore()` after the `CREATE TABLE IF NOT EXISTS` statement.
 
@@ -115,6 +118,12 @@ When adding shortcuts, update:
 
 ### Emoji Alignment
 Use `github.com/mattn/go-runewidth` for all string manipulations involving emojis (e.g., padding and truncation) to ensure visual alignment in the TUI.
+
+### Tag Editor
+- The `Enter` key in review view opens an inline tag editor popup (overlay on the review view).
+- Supports cursor navigation (arrow keys), word jump (Option+Arrow / Alt+b/f), word delete (Option+Delete), and standard backspace.
+- In batch mode, edited tags apply to all selected items.
+- Tags are comma-separated; empty strings are filtered out on confirm.
 
 ### Theme & Styles Architecture
 - Themes are defined in `internal/ui/styles.go` as `Theme` structs with color hex values. Each theme must include all fields including `Subtle` (used for borders/separators).
