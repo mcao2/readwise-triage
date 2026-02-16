@@ -40,6 +40,7 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 | `f` | Review | **Fetch More** (adds 7 days to lookback window) |
 | `R` | Review | **Refresh** from Readwise (re-fetch with current lookback) |
 | `u` | Review | **Update** Readwise (Apply changes to Selected items if active, else all triaged) |
+| `Esc` | Review | **Back** to config screen |
 | `q` / `Ctrl+C` | Global | Quit |
 | `?` | Global | Toggle help |
 
