@@ -17,6 +17,7 @@ type Config struct {
 	FeedDaysAgo      int    `yaml:"feed_days_ago"`
 	Theme            string `yaml:"theme"`
 	UseLLMTriage     bool   `yaml:"use_llm_triage"`
+	Location         string `yaml:"location"`
 }
 
 // Load loads configuration from config file and environment variables
@@ -181,6 +182,7 @@ func (c *Config) Save() error {
 	existing.FeedDaysAgo = c.FeedDaysAgo
 	existing.Theme = c.Theme
 	existing.UseLLMTriage = c.UseLLMTriage
+	existing.Location = c.Location
 	// Note: We preserve existing.ReadwiseToken and existing.PerplexityAPIKey
 
 	data, err := yaml.Marshal(existing)

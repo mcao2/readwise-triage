@@ -2408,3 +2408,35 @@ func TestWordBoundaryHelpers(t *testing.T) {
 		t.Errorf("nextWordBoundary(14) = %d, want 14", got)
 	}
 }
+
+func TestLocationPersistence(t *testing.T) {
+	// Toggle to feed and verify it's saved to config
+	m := NewModel()
+	m.state = StateConfig
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRight}) // toggle to feed
+	if m.fetchLocation != "feed" {
+		t.Fatalf("expected fetchLocation 'feed', got %q", m.fetchLocation)
+	}
+	if m.cfg.Location != "feed" {
+		t.Errorf("expected cfg.Location 'feed', got %q", m.cfg.Location)
+	}
+
+	// New model should restore the saved location
+	m2 := NewModel()
+	if m2.fetchLocation != "feed" {
+		t.Errorf("expected new model to restore fetchLocation 'feed', got %q", m2.fetchLocation)
+	}
+
+	// Toggle back to inbox and verify
+	m2.state = StateConfig
+	m2.Update(tea.KeyMsg{Type: tea.KeyRight}) // toggle back to new
+	if m2.fetchLocation != "new" {
+		t.Fatalf("expected fetchLocation 'new', got %q", m2.fetchLocation)
+	}
+
+	m3 := NewModel()
+	if m3.fetchLocation != "new" {
+		t.Errorf("expected new model to restore fetchLocation 'new', got %q", m3.fetchLocation)
+	}
+}
