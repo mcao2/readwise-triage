@@ -584,7 +584,8 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.Refresh):
 		return m, m.startFetching()
 	case keyMatches(msg, m.keys.Back):
-		return m, tea.Quit
+		m.state = StateConfig
+		return m, nil
 	}
 
 	if m.batchMode {
