@@ -18,9 +18,6 @@
 go.work
 go.work.sum
 
-# Binary
-readwise-triage
-
 # IDE
 .idea/
 .vscode/
