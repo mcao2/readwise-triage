@@ -78,8 +78,11 @@ The application automatically creates a config directory at `~/.config/readwise-
 # Required: Your Readwise API token
 readwise_token: "your_token_here"
 
-# Optional: Default number of days to fetch (default: 7)
-default_days_ago: 7
+# Optional: Default number of days to fetch for inbox (default: 7)
+inbox_days_ago: 7
+
+# Optional: Default number of days to fetch for feed (default: 7)
+feed_days_ago: 7
 
 # Optional: Color theme (default, catppuccin, dracula, nord, gruvbox)
 theme: "default"

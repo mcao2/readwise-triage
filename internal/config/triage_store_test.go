@@ -261,7 +261,7 @@ func TestLoadConfig(t *testing.T) {
 	cfgData := Config{
 		ReadwiseToken:    "test-token",
 		PerplexityAPIKey: "pplx-key",
-		DefaultDaysAgo:   14,
+		InboxDaysAgo:     14,
 		Theme:            "dracula",
 		UseLLMTriage:     true,
 	}
@@ -271,6 +271,7 @@ func TestLoadConfig(t *testing.T) {
 	t.Setenv("READWISE_TRIAGE_CONFIG", configPath)
 	t.Setenv("READWISE_TOKEN", "")
 	t.Setenv("PERPLEXITY_API_KEY", "")
+	t.Setenv("INBOX_DAYS_AGO", "")
 	t.Setenv("DEFAULT_DAYS_AGO", "")
 
 	cfg, err := Load()
@@ -283,8 +284,8 @@ func TestLoadConfig(t *testing.T) {
 	if cfg.PerplexityAPIKey != "pplx-key" {
 		t.Errorf("expected api key 'pplx-key', got %q", cfg.PerplexityAPIKey)
 	}
-	if cfg.DefaultDaysAgo != 14 {
-		t.Errorf("expected days 14, got %d", cfg.DefaultDaysAgo)
+	if cfg.InboxDaysAgo != 14 {
+		t.Errorf("expected days 14, got %d", cfg.InboxDaysAgo)
 	}
 	if cfg.Theme != "dracula" {
 		t.Errorf("expected theme 'dracula', got %q", cfg.Theme)
@@ -296,8 +297,8 @@ func TestLoadConfigEnvOverride(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	cfgData := Config{
-		ReadwiseToken:  "file-token",
-		DefaultDaysAgo: 7,
+		ReadwiseToken: "file-token",
+		InboxDaysAgo:  7,
 	}
 	data, _ := yaml.Marshal(cfgData)
 	os.WriteFile(configPath, data, 0600)
@@ -305,7 +306,8 @@ func TestLoadConfigEnvOverride(t *testing.T) {
 	t.Setenv("READWISE_TRIAGE_CONFIG", configPath)
 	t.Setenv("READWISE_TOKEN", "env-token")
 	t.Setenv("PERPLEXITY_API_KEY", "env-pplx")
-	t.Setenv("DEFAULT_DAYS_AGO", "30")
+	t.Setenv("INBOX_DAYS_AGO", "30")
+	t.Setenv("DEFAULT_DAYS_AGO", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -317,8 +319,8 @@ func TestLoadConfigEnvOverride(t *testing.T) {
 	if cfg.PerplexityAPIKey != "env-pplx" {
 		t.Errorf("expected env api key override, got %q", cfg.PerplexityAPIKey)
 	}
-	if cfg.DefaultDaysAgo != 30 {
-		t.Errorf("expected env days override 30, got %d", cfg.DefaultDaysAgo)
+	if cfg.InboxDaysAgo != 30 {
+		t.Errorf("expected env days override 30, got %d", cfg.InboxDaysAgo)
 	}
 }
 
@@ -327,14 +329,15 @@ func TestLoadConfigNoFile(t *testing.T) {
 	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "nonexistent.yaml"))
 	t.Setenv("READWISE_TOKEN", "")
 	t.Setenv("PERPLEXITY_API_KEY", "")
+	t.Setenv("INBOX_DAYS_AGO", "")
 	t.Setenv("DEFAULT_DAYS_AGO", "")
 
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load should not fail on missing file: %v", err)
 	}
-	if cfg.DefaultDaysAgo != 7 {
-		t.Errorf("expected default days 7, got %d", cfg.DefaultDaysAgo)
+	if cfg.InboxDaysAgo != 7 {
+		t.Errorf("expected default days 7, got %d", cfg.InboxDaysAgo)
 	}
 }
 
@@ -343,6 +346,7 @@ func TestLoadConfigInvalidDaysAgo(t *testing.T) {
 	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "nonexistent.yaml"))
 	t.Setenv("READWISE_TOKEN", "")
 	t.Setenv("PERPLEXITY_API_KEY", "")
+	t.Setenv("INBOX_DAYS_AGO", "")
 	t.Setenv("DEFAULT_DAYS_AGO", "not-a-number")
 
 	cfg, err := Load()
@@ -350,8 +354,8 @@ func TestLoadConfigInvalidDaysAgo(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 	// Should keep default since env value is invalid
-	if cfg.DefaultDaysAgo != 7 {
-		t.Errorf("expected default days 7 on invalid env, got %d", cfg.DefaultDaysAgo)
+	if cfg.InboxDaysAgo != 7 {
+		t.Errorf("expected default days 7 on invalid env, got %d", cfg.InboxDaysAgo)
 	}
 }
 
@@ -361,9 +365,9 @@ func TestConfigSave(t *testing.T) {
 	t.Setenv("READWISE_TRIAGE_CONFIG", configPath)
 
 	cfg := &Config{
-		DefaultDaysAgo: 14,
-		Theme:          "nord",
-		UseLLMTriage:   true,
+		InboxDaysAgo: 14,
+		Theme:        "nord",
+		UseLLMTriage: true,
 	}
 
 	if err := cfg.Save(); err != nil {
@@ -381,8 +385,8 @@ func TestConfigSave(t *testing.T) {
 		t.Fatalf("failed to parse saved config: %v", err)
 	}
 
-	if loaded.DefaultDaysAgo != 14 {
-		t.Errorf("expected days 14, got %d", loaded.DefaultDaysAgo)
+	if loaded.InboxDaysAgo != 14 {
+		t.Errorf("expected days 14, got %d", loaded.InboxDaysAgo)
 	}
 	if loaded.Theme != "nord" {
 		t.Errorf("expected theme 'nord', got %q", loaded.Theme)
@@ -399,18 +403,18 @@ func TestConfigSavePreservesTokens(t *testing.T) {
 
 	// Write initial config with token
 	initial := Config{
-		ReadwiseToken:  "my-secret-token",
-		DefaultDaysAgo: 7,
-		Theme:          "default",
+		ReadwiseToken: "my-secret-token",
+		InboxDaysAgo:  7,
+		Theme:         "default",
 	}
 	data, _ := yaml.Marshal(initial)
 	os.WriteFile(configPath, data, 0600)
 
 	// Save with different theme (should preserve token)
 	cfg := &Config{
-		DefaultDaysAgo: 14,
-		Theme:          "catppuccin",
-		UseLLMTriage:   false,
+		InboxDaysAgo: 14,
+		Theme:        "catppuccin",
+		UseLLMTriage: false,
 	}
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("Save failed: %v", err)
@@ -502,6 +506,7 @@ func TestLoadConfigInvalidYAML(t *testing.T) {
 	t.Setenv("READWISE_TRIAGE_CONFIG", configPath)
 	t.Setenv("READWISE_TOKEN", "")
 	t.Setenv("PERPLEXITY_API_KEY", "")
+	t.Setenv("INBOX_DAYS_AGO", "")
 	t.Setenv("DEFAULT_DAYS_AGO", "")
 
 	_, err := Load()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -78,9 +79,11 @@ type Model struct {
 	cfg         *config.Config
 	triageStore *config.TriageStore
 
-	fetchLookback     int
+	inboxLookback     int
 	feedLookback      int
 	fetchLocation     string
+	editingDays       bool
+	daysInput         string
 }
 
 type Item struct {
@@ -101,7 +104,7 @@ type Item struct {
 func NewModel() *Model {
 	cfg, err := config.Load()
 	if err != nil {
-		cfg = &config.Config{DefaultDaysAgo: 7}
+		cfg = &config.Config{InboxDaysAgo: 7}
 	}
 
 	triageStore, err := config.LoadTriageStore()
@@ -161,8 +164,8 @@ func NewModel() *Model {
 		progress:      p,
 		cfg:           cfg,
 		triageStore:   triageStore,
-		fetchLookback: cfg.DefaultDaysAgo,
-		feedLookback:  cfg.DefaultDaysAgo,
+		inboxLookback: cfg.InboxDaysAgo,
+		feedLookback:  cfg.FeedDaysAgo,
 		fetchLocation: "new",
 	}
 	m.listView = NewListView(80, 24)
@@ -174,14 +177,25 @@ func (m *Model) activeLookback() int {
 	if m.fetchLocation == "feed" {
 		return m.feedLookback
 	}
-	return m.fetchLookback
+	return m.inboxLookback
 }
 
 func (m *Model) activeLookbackPtr() *int {
 	if m.fetchLocation == "feed" {
 		return &m.feedLookback
 	}
-	return &m.fetchLookback
+	return &m.inboxLookback
+}
+
+func (m *Model) saveLookback() {
+	if m.cfg != nil {
+		if m.fetchLocation == "feed" {
+			m.cfg.FeedDaysAgo = m.feedLookback
+		} else {
+			m.cfg.InboxDaysAgo = m.inboxLookback
+		}
+		_ = m.cfg.Save()
+	}
 }
 
 func (m *Model) cycleTheme() {
@@ -332,6 +346,31 @@ type UpdateFinishedMsg struct {
 }
 
 func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Days input editing mode
+	if m.editingDays {
+		switch msg.Type {
+		case tea.KeyEnter:
+			if days, err := strconv.Atoi(m.daysInput); err == nil && days >= 1 {
+				*m.activeLookbackPtr() = days
+				m.saveLookback()
+			}
+			m.editingDays = false
+			m.daysInput = ""
+		case tea.KeyEsc:
+			m.editingDays = false
+			m.daysInput = ""
+		case tea.KeyBackspace:
+			if len(m.daysInput) > 0 {
+				m.daysInput = m.daysInput[:len(m.daysInput)-1]
+			}
+		default:
+			if len(msg.String()) == 1 && msg.String()[0] >= '0' && msg.String()[0] <= '9' {
+				m.daysInput += msg.String()
+			}
+		}
+		return m, nil
+	}
+
 	switch {
 	case keyMatches(msg, m.keys.Enter):
 		return m, m.startFetching()
@@ -345,12 +384,21 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case keyMatches(msg, m.keys.Up):
 		*m.activeLookbackPtr() += 7
+		m.saveLookback()
 	case keyMatches(msg, m.keys.Down):
 		if m.activeLookback() > 1 {
 			*m.activeLookbackPtr() -= 7
 			if m.activeLookback() < 1 {
 				*m.activeLookbackPtr() = 1
 			}
+			m.saveLookback()
+		}
+	default:
+		// Pressing a digit starts days editing mode
+		if len(msg.String()) == 1 && msg.String()[0] >= '0' && msg.String()[0] <= '9' {
+			m.editingDays = true
+			m.daysInput = msg.String()
+			return m, nil
 		}
 	}
 	return m, nil
@@ -576,10 +624,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case keyMatches(msg, m.keys.FetchMore):
 		*m.activeLookbackPtr() += 7
-		if m.cfg != nil {
-			m.cfg.DefaultDaysAgo = m.activeLookback()
-			_ = m.cfg.Save()
-		}
+		m.saveLookback()
 		return m, m.startFetching()
 	case keyMatches(msg, m.keys.Refresh):
 		return m, m.startFetching()
@@ -739,7 +784,12 @@ func (m *Model) configView() string {
 	locationLine := fmt.Sprintf("  📂  %s", m.styles.Normal.Render("Location: "+locationLabel))
 
 	// Days lookback
-	daysLine := fmt.Sprintf("  📅  %s", m.styles.Normal.Render(fmt.Sprintf("Fetch last %d days", m.activeLookback())))
+	var daysLine string
+	if m.editingDays {
+		daysLine = fmt.Sprintf("  📅  %s", m.styles.Normal.Render("Days: "+m.daysInput+"▌"))
+	} else {
+		daysLine = fmt.Sprintf("  📅  %s", m.styles.Normal.Render(fmt.Sprintf("Fetch last %d days", m.activeLookback())))
+	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		"",
@@ -761,7 +811,8 @@ func (m *Model) configView() string {
 	help := m.renderHelpLine([]helpEntry{
 		{"enter", "start"},
 		{"h/l", "location"},
-		{"j/k", "days"},
+		{"j/k", "days ±7"},
+		{"0-9", "type days"},
 		{"t", "theme"},
 		{"q", "quit"},
 	})

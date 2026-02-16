@@ -13,7 +13,8 @@ import (
 type Config struct {
 	ReadwiseToken    string `yaml:"readwise_token"`
 	PerplexityAPIKey string `yaml:"perplexity_api_key"`
-	DefaultDaysAgo   int    `yaml:"default_days_ago"`
+	InboxDaysAgo     int    `yaml:"inbox_days_ago"`
+	FeedDaysAgo      int    `yaml:"feed_days_ago"`
 	Theme            string `yaml:"theme"`
 	UseLLMTriage     bool   `yaml:"use_llm_triage"`
 }
@@ -22,7 +23,8 @@ type Config struct {
 // Environment variables take precedence over config file values
 func Load() (*Config, error) {
 	cfg := &Config{
-		DefaultDaysAgo: 7,
+		InboxDaysAgo: 7,
+		FeedDaysAgo:  7,
 	}
 
 	// Load from config file first
@@ -47,7 +49,21 @@ func (c *Config) loadFromFile() error {
 		return err
 	}
 
-	return yaml.Unmarshal(data, c)
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return err
+	}
+
+	// Backward compat: if inbox_days_ago was not set, check legacy default_days_ago
+	if c.InboxDaysAgo == 0 {
+		var legacy struct {
+			DefaultDaysAgo int `yaml:"default_days_ago"`
+		}
+		if err := yaml.Unmarshal(data, &legacy); err == nil && legacy.DefaultDaysAgo != 0 {
+			c.InboxDaysAgo = legacy.DefaultDaysAgo
+		}
+	}
+
+	return nil
 }
 
 func (c *Config) loadFromEnv() {
@@ -57,9 +73,14 @@ func (c *Config) loadFromEnv() {
 	if apiKey := os.Getenv("PERPLEXITY_API_KEY"); apiKey != "" {
 		c.PerplexityAPIKey = apiKey
 	}
-	if daysStr := os.Getenv("DEFAULT_DAYS_AGO"); daysStr != "" {
+	// Prefer INBOX_DAYS_AGO, fall back to legacy DEFAULT_DAYS_AGO
+	if daysStr := os.Getenv("INBOX_DAYS_AGO"); daysStr != "" {
 		if d, err := strconv.Atoi(daysStr); err == nil {
-			c.DefaultDaysAgo = d
+			c.InboxDaysAgo = d
+		}
+	} else if daysStr := os.Getenv("DEFAULT_DAYS_AGO"); daysStr != "" {
+		if d, err := strconv.Atoi(daysStr); err == nil {
+			c.InboxDaysAgo = d
 		}
 	}
 }
@@ -125,8 +146,11 @@ readwise_token: "your_token_here"
 # Get your key at: https://www.perplexity.ai/settings/api
 perplexity_api_key: "your_api_key_here"
 
-# Optional: Default number of days to fetch (default: 7)
-default_days_ago: 7
+# Optional: Default number of days to fetch for inbox (default: 7)
+inbox_days_ago: 7
+
+# Optional: Default number of days to fetch for feed (default: 7)
+feed_days_ago: 7
 
 # Optional: Color theme (default, catppuccin, dracula, nord, gruvbox)
 theme: "default"
@@ -147,13 +171,14 @@ func (c *Config) Save() error {
 	configPath := filepath.Join(configDir, "config.yaml")
 
 	// Load existing config to preserve fields like tokens
-	existing := &Config{DefaultDaysAgo: 7}
+	existing := &Config{InboxDaysAgo: 7, FeedDaysAgo: 7}
 	if data, err := os.ReadFile(configPath); err == nil {
 		yaml.Unmarshal(data, existing)
 	}
 
 	// Update only the fields we manage (not tokens from env vars)
-	existing.DefaultDaysAgo = c.DefaultDaysAgo
+	existing.InboxDaysAgo = c.InboxDaysAgo
+	existing.FeedDaysAgo = c.FeedDaysAgo
 	existing.Theme = c.Theme
 	existing.UseLLMTriage = c.UseLLMTriage
 	// Note: We preserve existing.ReadwiseToken and existing.PerplexityAPIKey

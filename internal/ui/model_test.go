@@ -656,12 +656,12 @@ func TestFetchMoreKey(t *testing.T) {
 	m.Update(ItemsLoadedMsg{Items: items})
 	m.state = StateReviewing
 
-	initialLookback := m.fetchLookback
+	initialLookback := m.inboxLookback
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
 
-	if m.fetchLookback != initialLookback+7 {
-		t.Errorf("expected fetchLookback %d, got %d", initialLookback+7, m.fetchLookback)
+	if m.inboxLookback != initialLookback+7 {
+		t.Errorf("expected inboxLookback %d, got %d", initialLookback+7, m.inboxLookback)
 	}
 	if m.state != StateFetching {
 		t.Errorf("expected StateFetching, got %v", m.state)
@@ -1866,12 +1866,13 @@ func TestIndependentLookbackPerLocation(t *testing.T) {
 	m.listView.SetItems(m.items)
 	m.state = StateReviewing
 
-	initialLookback := m.fetchLookback
+	initialInbox := m.inboxLookback
+	initialFeed := m.feedLookback
 
-	// Fetch more in inbox mode — should bump fetchLookback
+	// Fetch more in inbox mode — should bump inboxLookback
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
-	if m.fetchLookback != initialLookback+7 {
-		t.Errorf("expected inbox lookback %d, got %d", initialLookback+7, m.fetchLookback)
+	if m.inboxLookback != initialInbox+7 {
+		t.Errorf("expected inbox lookback %d, got %d", initialInbox+7, m.inboxLookback)
 	}
 
 	// Switch to feed and reload items
@@ -1879,20 +1880,20 @@ func TestIndependentLookbackPerLocation(t *testing.T) {
 	m.Update(ItemsLoadedMsg{Items: m.items})
 	m.state = StateReviewing
 
-	// Feed lookback should still be at initial value
-	if m.feedLookback != initialLookback {
-		t.Errorf("expected feed lookback %d, got %d", initialLookback, m.feedLookback)
+	// Feed lookback should still be at its initial value
+	if m.feedLookback != initialFeed {
+		t.Errorf("expected feed lookback %d, got %d", initialFeed, m.feedLookback)
 	}
 
 	// Fetch more in feed mode — should bump feedLookback only
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
-	if m.feedLookback != initialLookback+7 {
-		t.Errorf("expected feed lookback %d, got %d", initialLookback+7, m.feedLookback)
+	if m.feedLookback != initialFeed+7 {
+		t.Errorf("expected feed lookback %d, got %d", initialFeed+7, m.feedLookback)
 	}
 
 	// Inbox lookback should be unchanged from before
-	if m.fetchLookback != initialLookback+7 {
-		t.Errorf("expected inbox lookback still %d, got %d", initialLookback+7, m.fetchLookback)
+	if m.inboxLookback != initialInbox+7 {
+		t.Errorf("expected inbox lookback still %d, got %d", initialInbox+7, m.inboxLookback)
 	}
 }
 
@@ -1914,9 +1915,71 @@ func TestConfigDaysAdjust(t *testing.T) {
 	}
 
 	// Down should not go below 1
-	m.fetchLookback = 3
+	m.inboxLookback = 3
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	if m.activeLookback() < 1 {
 		t.Errorf("expected lookback >= 1, got %d", m.activeLookback())
+	}
+}
+
+func TestConfigDaysDirectInput(t *testing.T) {
+	m := NewModel()
+	m.state = StateConfig
+
+	// Type "30" then Enter to set days to 30
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	if !m.editingDays {
+		t.Fatal("expected editingDays to be true after pressing digit")
+	}
+	if m.daysInput != "3" {
+		t.Errorf("expected daysInput '3', got %q", m.daysInput)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("0")})
+	if m.daysInput != "30" {
+		t.Errorf("expected daysInput '30', got %q", m.daysInput)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.editingDays {
+		t.Fatal("expected editingDays to be false after Enter")
+	}
+	if m.activeLookback() != 30 {
+		t.Errorf("expected lookback 30, got %d", m.activeLookback())
+	}
+
+	// Esc cancels without changing value
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("5")})
+	if !m.editingDays {
+		t.Fatal("expected editingDays after pressing digit")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.editingDays {
+		t.Fatal("expected editingDays to be false after Esc")
+	}
+	if m.activeLookback() != 30 {
+		t.Errorf("expected lookback still 30 after Esc, got %d", m.activeLookback())
+	}
+
+	// Invalid input (0) is ignored on Enter
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("0")})
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.activeLookback() != 30 {
+		t.Errorf("expected lookback still 30 after entering 0, got %d", m.activeLookback())
+	}
+
+	// Backspace removes last digit
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("5")})
+	if m.daysInput != "45" {
+		t.Errorf("expected daysInput '45', got %q", m.daysInput)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.daysInput != "4" {
+		t.Errorf("expected daysInput '4' after backspace, got %q", m.daysInput)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.activeLookback() != 4 {
+		t.Errorf("expected lookback 4, got %d", m.activeLookback())
 	}
 }
