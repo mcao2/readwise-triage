@@ -1732,3 +1732,166 @@ func TestNavigationAfterMultipleUpdateCycles(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigLocationToggle(t *testing.T) {
+	m := NewModel()
+	m.state = StateConfig
+
+	if m.fetchLocation != "new" {
+		t.Fatalf("expected default fetchLocation 'new', got %q", m.fetchLocation)
+	}
+
+	// Press Right to toggle to feed
+	m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if m.fetchLocation != "feed" {
+		t.Errorf("expected fetchLocation 'feed' after Right, got %q", m.fetchLocation)
+	}
+
+	// Press Left to toggle back to new
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if m.fetchLocation != "new" {
+		t.Errorf("expected fetchLocation 'new' after Left, got %q", m.fetchLocation)
+	}
+
+	// Press 'h' (Left alias) to toggle to feed
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	if m.fetchLocation != "feed" {
+		t.Errorf("expected fetchLocation 'feed' after 'h', got %q", m.fetchLocation)
+	}
+
+	// Press 'l' (Right alias) to toggle back to new
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	if m.fetchLocation != "new" {
+		t.Errorf("expected fetchLocation 'new' after 'l', got %q", m.fetchLocation)
+	}
+}
+
+func TestConfigViewRendersLocation(t *testing.T) {
+	m := NewModel()
+	m.state = StateConfig
+
+	view := m.View()
+	if !strings.Contains(view, "Location") {
+		t.Error("expected config view to contain 'Location'")
+	}
+	if !strings.Contains(view, "Inbox") {
+		t.Error("expected config view to show 'Inbox' for default location")
+	}
+
+	m.fetchLocation = "feed"
+	view = m.View()
+	if !strings.Contains(view, "Feed") {
+		t.Error("expected config view to show 'Feed' after toggle")
+	}
+}
+
+func TestReviewingHeaderShowsLocationTag(t *testing.T) {
+	m := NewModel()
+	m.state = StateReviewing
+	m.width = 100
+	m.height = 40
+	m.items = []Item{{ID: "1", Title: "Test"}}
+	m.listView.SetItems(m.items)
+
+	// Default: Inbox
+	view := m.View()
+	if !strings.Contains(view, "[Inbox]") {
+		t.Error("expected reviewing header to contain '[Inbox]'")
+	}
+
+	// Feed
+	m.fetchLocation = "feed"
+	view = m.View()
+	if !strings.Contains(view, "[Feed]") {
+		t.Error("expected reviewing header to contain '[Feed]'")
+	}
+}
+
+func TestFeedUpdatePromotesToInbox(t *testing.T) {
+	m := NewModel()
+	m.cfg = &config.Config{ReadwiseToken: "test-token"}
+	m.fetchLocation = "feed"
+	m.items = []Item{
+		{ID: "1", Title: "Read Now Item", Action: "read_now"},
+		{ID: "2", Title: "Needs Review Item", Action: "needs_review"},
+		{ID: "3", Title: "Later Item", Action: "later"},
+		{ID: "4", Title: "Archive Item", Action: "archive"},
+	}
+	m.listView.SetItems(m.items)
+	m.state = StateConfirming
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if cmd == nil {
+		t.Fatal("expected command after confirming")
+	}
+	if m.state != StateUpdating {
+		t.Errorf("expected StateUpdating, got %v", m.state)
+	}
+}
+
+func TestFetchingViewFeedTitle(t *testing.T) {
+	m := NewModel()
+	m.state = StateFetching
+	m.fetchLocation = "feed"
+	view := m.View()
+	if !strings.Contains(view, "Fetching Feed Items") {
+		t.Error("expected fetching view to show 'Fetching Feed Items'")
+	}
+
+	m.fetchLocation = "new"
+	view = m.View()
+	if !strings.Contains(view, "Fetching Inbox Items") {
+		t.Error("expected fetching view to show 'Fetching Inbox Items'")
+	}
+}
+
+func TestItemsLoadedMsgFeedStatus(t *testing.T) {
+	m := NewModel()
+	m.fetchLocation = "feed"
+	m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Test"}}})
+	if !strings.Contains(m.statusMessage, "feed") {
+		t.Errorf("expected status message to contain 'feed', got %q", m.statusMessage)
+	}
+
+	m.fetchLocation = "new"
+	m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Test"}}})
+	if !strings.Contains(m.statusMessage, "inbox") {
+		t.Errorf("expected status message to contain 'inbox', got %q", m.statusMessage)
+	}
+}
+
+func TestIndependentLookbackPerLocation(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{{ID: "1", Title: "Item 1"}}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	initialLookback := m.fetchLookback
+
+	// Fetch more in inbox mode — should bump fetchLookback
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	if m.fetchLookback != initialLookback+7 {
+		t.Errorf("expected inbox lookback %d, got %d", initialLookback+7, m.fetchLookback)
+	}
+
+	// Switch to feed and reload items
+	m.fetchLocation = "feed"
+	m.Update(ItemsLoadedMsg{Items: m.items})
+	m.state = StateReviewing
+
+	// Feed lookback should still be at initial value
+	if m.feedLookback != initialLookback {
+		t.Errorf("expected feed lookback %d, got %d", initialLookback, m.feedLookback)
+	}
+
+	// Fetch more in feed mode — should bump feedLookback only
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
+	if m.feedLookback != initialLookback+7 {
+		t.Errorf("expected feed lookback %d, got %d", initialLookback+7, m.feedLookback)
+	}
+
+	// Inbox lookback should be unchanged from before
+	if m.fetchLookback != initialLookback+7 {
+		t.Errorf("expected inbox lookback still %d, got %d", initialLookback+7, m.fetchLookback)
+	}
+}

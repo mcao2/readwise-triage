@@ -78,7 +78,9 @@ type Model struct {
 	cfg         *config.Config
 	triageStore *config.TriageStore
 
-	fetchLookback int
+	fetchLookback     int
+	feedLookback      int
+	fetchLocation     string
 }
 
 type Item struct {
@@ -160,10 +162,26 @@ func NewModel() *Model {
 		cfg:           cfg,
 		triageStore:   triageStore,
 		fetchLookback: cfg.DefaultDaysAgo,
+		feedLookback:  cfg.DefaultDaysAgo,
+		fetchLocation: "new",
 	}
 	m.listView = NewListView(80, 24)
 	m.listView.UpdateTableStyles(Themes[themeName])
 	return m
+}
+
+func (m *Model) activeLookback() int {
+	if m.fetchLocation == "feed" {
+		return m.feedLookback
+	}
+	return m.fetchLookback
+}
+
+func (m *Model) activeLookbackPtr() *int {
+	if m.fetchLocation == "feed" {
+		return &m.feedLookback
+	}
+	return &m.fetchLookback
 }
 
 func (m *Model) cycleTheme() {
@@ -218,7 +236,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.items = msg.Items
 		m.applySavedTriages()
 		m.listView.SetItems(m.items)
-		m.statusMessage = fmt.Sprintf("Loaded %d items from the last %d days", len(m.items), m.fetchLookback)
+		locationLabel := "inbox"
+		if m.fetchLocation == "feed" {
+			locationLabel = "feed"
+		}
+		m.statusMessage = fmt.Sprintf("Loaded %d %s items from the last %d days", len(m.items), locationLabel, m.activeLookback())
 		m.state = StateReviewing
 
 	case UpdateFinishedMsg:
@@ -315,6 +337,12 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.startFetching()
 	case keyMatches(msg, m.keys.CycleTheme):
 		m.cycleTheme()
+	case keyMatches(msg, m.keys.Left), keyMatches(msg, m.keys.Right):
+		if m.fetchLocation == "new" {
+			m.fetchLocation = "feed"
+		} else {
+			m.fetchLocation = "new"
+		}
 	}
 	return m, nil
 }
@@ -334,8 +362,8 @@ func (m *Model) startFetching() tea.Cmd {
 		}
 
 		opts := readwise.FetchOptions{
-			DaysAgo:  m.fetchLookback,
-			Location: "new",
+			DaysAgo:  m.activeLookback(),
+			Location: m.fetchLocation,
 		}
 		items, err := client.GetInboxItems(opts)
 		if err != nil {
@@ -402,13 +430,17 @@ func (m *Model) startUpdating() tea.Cmd {
 
 			switch item.Action {
 			case "read_now":
-				// no location change needed
+				if m.fetchLocation == "feed" {
+					update.Location = "new"
+				}
 			case "later":
 				update.Location = "later"
 			case "archive", "delete":
 				update.Location = "archive"
 			case "needs_review":
-				// no location change needed
+				if m.fetchLocation == "feed" {
+					update.Location = "new"
+				}
 			}
 
 			// Start with original Readwise tags to preserve them
@@ -534,9 +566,9 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state = StateConfirming
 		return m, nil
 	case keyMatches(msg, m.keys.FetchMore):
-		m.fetchLookback += 7
+		*m.activeLookbackPtr() += 7
 		if m.cfg != nil {
-			m.cfg.DefaultDaysAgo = m.fetchLookback
+			m.cfg.DefaultDaysAgo = m.activeLookback()
 			_ = m.cfg.Save()
 		}
 		return m, m.startFetching()
@@ -689,14 +721,22 @@ func (m *Model) configView() string {
 	}
 	themeLine := fmt.Sprintf("  🎨  %s", m.styles.Normal.Render("Theme: "+themeName))
 
+	// Location indicator
+	locationLabel := "Inbox"
+	if m.fetchLocation == "feed" {
+		locationLabel = "Feed"
+	}
+	locationLine := fmt.Sprintf("  📂  %s", m.styles.Normal.Render("Location: "+locationLabel))
+
 	// Days lookback
-	daysLine := fmt.Sprintf("  📅  %s", m.styles.Normal.Render(fmt.Sprintf("Fetch last %d days", m.fetchLookback)))
+	daysLine := fmt.Sprintf("  📅  %s", m.styles.Normal.Render(fmt.Sprintf("Fetch last %d days", m.activeLookback())))
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		"",
 		title,
 		"",
 		themeLine,
+		locationLine,
 		daysLine,
 		"",
 	)
@@ -710,6 +750,7 @@ func (m *Model) configView() string {
 	// Help
 	help := m.renderHelpLine([]helpEntry{
 		{"enter", "start"},
+		{"h/l", "location"},
 		{"t", "theme"},
 		{"q", "quit"},
 	})
@@ -728,9 +769,14 @@ func (m *Model) fetchingView() string {
 	spinnerView := m.spinner.View()
 	status := fmt.Sprintf("%s Loading from Readwise...", spinnerView)
 
+	fetchTitle := "Fetching Inbox Items"
+	if m.fetchLocation == "feed" {
+		fetchTitle = "Fetching Feed Items"
+	}
+
 	content := m.styles.Border.Render(
 		lipgloss.JoinVertical(lipgloss.Center,
-			m.styles.Title.Render("Fetching Inbox Items"),
+			m.styles.Title.Render(fetchTitle),
 			"",
 			m.styles.Normal.Render(status),
 		),
@@ -759,7 +805,11 @@ func (m *Model) triagingView() string {
 
 func (m *Model) reviewingView() string {
 	// Header bar
-	headerLeft := m.styles.HelpKey.Render("Readwise Triage")
+	locationTag := "[Inbox]"
+	if m.fetchLocation == "feed" {
+		locationTag = "[Feed]"
+	}
+	headerLeft := m.styles.HelpKey.Render("Readwise Triage " + locationTag)
 	countText := m.styles.HelpDesc.Render(fmt.Sprintf("%d/%d", m.cursor+1, len(m.items)))
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())
