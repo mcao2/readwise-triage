@@ -45,6 +45,8 @@ debug.log
 *.json
 !go.mod
 !go.sum
+*.db
+*.sqlite
 
 # Old Python implementation (removed)
 *.py
