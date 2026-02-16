@@ -3,7 +3,7 @@
 BINARY_NAME=readwise-triage
 CMD_PATH=./cmd/readwise-triage
 
-.PHONY: all build test run clean install
+.PHONY: all build test run clean install setup
 
 all: build
 
@@ -33,3 +33,7 @@ vet:
 
 mod-tidy:
 	go mod tidy
+
+setup:
+	git config core.hooksPath .githooks
+	@echo "Git hooks configured."

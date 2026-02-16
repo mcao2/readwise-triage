@@ -1,0 +1,19 @@
+#!/bin/sh
+# Pre-commit hook: verify formatting and vet before committing
+
+# Check formatting
+unformatted=$(gofmt -l . 2>/dev/null)
+if [ -n "$unformatted" ]; then
+    echo "gofmt: files not formatted:"
+    echo "$unformatted"
+    echo ""
+    echo "Run: gofmt -w ."
+    exit 1
+fi
+
+# Run vet
+if ! go vet ./... 2>&1; then
+    echo ""
+    echo "go vet failed"
+    exit 1
+fi

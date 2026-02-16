@@ -57,6 +57,9 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 git clone https://github.com/mcao2/readwise-triage.git
 cd readwise-triage
 
+# Enable pre-commit hooks (gofmt + go vet)
+make setup
+
 # Build the binary
 go build -o readwise-triage ./cmd/readwise-triage
 
