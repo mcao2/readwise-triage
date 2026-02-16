@@ -1027,24 +1027,7 @@ func (m *Model) reviewingView() string {
 
 	// Detail pane (simple padded text, no border)
 	detail := ""
-	if m.editingTags {
-		// Tag editing popup — centered, with cursor at tagsCursor position
-		runes := []rune(m.tagsInput)
-		before := string(runes[:m.tagsCursor])
-		after := string(runes[m.tagsCursor:])
-		inputLine := fmt.Sprintf("tags: %s▌%s", before, after)
-		helpLine := m.renderHelpLine([]helpEntry{{"enter", "confirm"}, {"esc", "cancel"}, {"←/→", "move"}, {"opt+←/→", "word"}})
-		popup := m.styles.Card.Render(
-			lipgloss.JoinVertical(lipgloss.Left,
-				m.styles.Title.Render("Edit Tags"),
-				"",
-				m.styles.Normal.Render(inputLine),
-				"",
-				helpLine,
-			),
-		)
-		detail = lipgloss.PlaceHorizontal(m.width-1, lipgloss.Center, popup)
-	} else if len(m.items) > 0 {
+	if !m.editingTags && len(m.items) > 0 {
 		detailContent := m.listView.DetailView(m.width, m.styles)
 		if detailContent != "" {
 			divW := m.width - 1
@@ -1084,6 +1067,29 @@ func (m *Model) reviewingView() string {
 	}
 
 	content := strings.Join(parts, "\n")
+
+	// Tag editing popup — centered overlay on the full screen
+	if m.editingTags {
+		runes := []rune(m.tagsInput)
+		before := string(runes[:m.tagsCursor])
+		after := string(runes[m.tagsCursor:])
+		inputLine := fmt.Sprintf("tags: %s▌%s", before, after)
+		helpLine := m.renderHelpLine([]helpEntry{{"enter", "confirm"}, {"esc", "cancel"}, {"←/→", "move"}, {"opt+←/→", "word"}})
+		popup := m.styles.Card.Render(
+			lipgloss.JoinVertical(lipgloss.Left,
+				m.styles.Title.Render("Edit Tags"),
+				"",
+				m.styles.Normal.Render(inputLine),
+				"",
+				helpLine,
+			),
+		)
+		w := m.width - 1
+		if w < 1 {
+			w = 1
+		}
+		content = lipgloss.Place(w, m.height, lipgloss.Center, lipgloss.Center, popup)
+	}
 
 	// Pad output to exactly m.height lines so the alternate screen buffer
 	// repaints cleanly and doesn't leave stale content from previous frames.
