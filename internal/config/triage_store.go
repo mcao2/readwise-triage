@@ -20,7 +20,7 @@ type TriageEntry struct {
 	Tags      []string
 	Source    string
 	TriagedAt string
-	Report   *triage.Result // full LLM report, nil for manual entries
+	Report    *triage.Result // full LLM report, nil for manual entries
 }
 
 // TriageStore persists triage decisions in a SQLite database.
@@ -168,9 +168,9 @@ func (s *TriageStore) Save() error {
 
 // legacyTriageStore mirrors the old JSON file structure for migration.
 type legacyTriageStore struct {
-	Version   string                  `json:"version"`
-	UpdatedAt time.Time               `json:"updated_at"`
-	Items     map[string]legacyEntry  `json:"items"`
+	Version   string                 `json:"version"`
+	UpdatedAt time.Time              `json:"updated_at"`
+	Items     map[string]legacyEntry `json:"items"`
 }
 
 type legacyEntry struct {

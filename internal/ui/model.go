@@ -80,14 +80,14 @@ type Model struct {
 	cfg         *config.Config
 	triageStore *config.TriageStore
 
-	inboxLookback     int
-	feedLookback      int
-	fetchLocation     string
-	editingDays       bool
-	daysInput         string
-	editingTags       bool
-	tagsInput         string
-	tagsCursor        int
+	inboxLookback int
+	feedLookback  int
+	fetchLocation string
+	editingDays   bool
+	daysInput     string
+	editingTags   bool
+	tagsInput     string
+	tagsCursor    int
 }
 
 type Item struct {

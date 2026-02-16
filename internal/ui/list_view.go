@@ -11,12 +11,12 @@ import (
 )
 
 type ListView struct {
-	table      table.Model
-	items      []Item
-	cursor     int
-	selected   map[int]bool
-	width      int
-	height     int
+	table       table.Model
+	items       []Item
+	cursor      int
+	selected    map[int]bool
+	width       int
+	height      int
 	visibleRows int // number of data rows visible (excluding header)
 
 	// Styles for custom rendering
@@ -30,7 +30,7 @@ func listColumns(width int) []table.Column {
 	// Each cell has Padding(0,1) adding 2 chars per column (7 columns = 14 extra).
 	// Subtract 2 more to avoid hitting exact terminal width (causes implicit wraps).
 	fixedWidth := 2 + 10 + 8 + 10 + 14 + 20 // non-title columns
-	padding := 7*2 + 2                        // 7 columns × 2 chars padding each + 2 safety margin
+	padding := 7*2 + 2                      // 7 columns × 2 chars padding each + 2 safety margin
 	titleWidth := width - fixedWidth - padding
 	if titleWidth < 20 {
 		titleWidth = 20

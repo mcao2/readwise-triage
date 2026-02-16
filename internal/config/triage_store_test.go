@@ -196,17 +196,17 @@ func TestTriageStoreMigrateFromJSON(t *testing.T) {
 		"updated_at": "2025-01-01T00:00:00Z",
 		"items": map[string]interface{}{
 			"doc1": map[string]interface{}{
-				"action":    "read_now",
-				"priority":  "high",
-				"tags":      []string{"golang"},
+				"action":     "read_now",
+				"priority":   "high",
+				"tags":       []string{"golang"},
 				"triaged_at": "2025-01-01T00:00:00Z",
-				"source":    "llm",
+				"source":     "llm",
 			},
 			"doc2": map[string]interface{}{
-				"action":    "archive",
-				"priority":  "low",
+				"action":     "archive",
+				"priority":   "low",
 				"triaged_at": "2025-01-01T00:00:00Z",
-				"source":    "manual",
+				"source":     "manual",
 			},
 		},
 	}
