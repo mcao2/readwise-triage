@@ -84,6 +84,8 @@ type Model struct {
 	fetchLocation     string
 	editingDays       bool
 	daysInput         string
+	editingTags       bool
+	tagsInput         string
 }
 
 type Item struct {
@@ -565,7 +567,45 @@ func (m *Model) waitForUpdateProgress(ch chan readwise.BatchUpdateProgress, succ
 }
 
 func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Tag editing mode intercept
+	if m.editingTags {
+		switch msg.Type {
+		case tea.KeyEnter:
+			tags := parseTags(m.tagsInput)
+			if m.batchMode {
+				m.applyBatchTags(tags)
+			} else if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
+				item.Tags = tags
+				m.saveTriage(item.ID, item.Action, item.Priority, item.Tags)
+				m.listView.SetItems(m.items)
+			}
+			m.editingTags = false
+			m.tagsInput = ""
+		case tea.KeyEsc:
+			m.editingTags = false
+			m.tagsInput = ""
+		case tea.KeyBackspace:
+			if len(m.tagsInput) > 0 {
+				m.tagsInput = m.tagsInput[:len(m.tagsInput)-1]
+			}
+		default:
+			if s := msg.String(); len(s) == 1 && s[0] >= 32 {
+				m.tagsInput += s
+			}
+		}
+		return m, nil
+	}
+
 	switch {
+	case keyMatches(msg, m.keys.Enter):
+		// Enter tag editing mode
+		m.editingTags = true
+		if m.batchMode {
+			m.tagsInput = ""
+		} else if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
+			m.tagsInput = strings.Join(item.Tags, ", ")
+		}
+		return m, nil
 	case keyMatches(msg, m.keys.Up):
 		// Use SetCursor directly to avoid the table's broken YOffset logic in MoveUp/MoveDown
 		m.listView.MoveCursor(-1)
@@ -699,6 +739,29 @@ func (m *Model) applyBatchPriority(priority string) {
 		}
 	}
 	m.listView.SetItems(m.items)
+}
+
+func (m *Model) applyBatchTags(tags []string) {
+	selected := m.listView.GetSelected()
+	for _, idx := range selected {
+		if idx >= 0 && idx < len(m.items) {
+			m.items[idx].Tags = tags
+			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority, m.items[idx].Tags)
+		}
+	}
+	m.listView.SetItems(m.items)
+}
+
+func parseTags(input string) []string {
+	parts := strings.Split(input, ",")
+	var tags []string
+	for _, p := range parts {
+		t := strings.TrimSpace(p)
+		if t != "" {
+			tags = append(tags, t)
+		}
+	}
+	return tags
 }
 
 func (m *Model) setItemAction(item *Item, action string) {
@@ -896,7 +959,20 @@ func (m *Model) reviewingView() string {
 
 	// Detail pane (simple padded text, no border)
 	detail := ""
-	if len(m.items) > 0 {
+	if m.editingTags {
+		// Tag editing popup replaces detail + footer
+		inputLine := fmt.Sprintf("tags: %s▌", m.tagsInput)
+		helpLine := m.renderHelpLine([]helpEntry{{"enter", "confirm"}, {"esc", "cancel"}})
+		detail = m.styles.Card.Render(
+			lipgloss.JoinVertical(lipgloss.Left,
+				m.styles.Title.Render("Edit Tags"),
+				"",
+				m.styles.Normal.Render(inputLine),
+				"",
+				helpLine,
+			),
+		)
+	} else if len(m.items) > 0 {
 		detailContent := m.listView.DetailView(m.width, m.styles)
 		if detailContent != "" {
 			divW := m.width - 1
@@ -914,12 +990,14 @@ func (m *Model) reviewingView() string {
 		statusLine = m.styles.Help.Render("  " + m.statusMessage)
 	}
 
-	// Help overlay or footer
+	// Help overlay or footer (hidden during tag editing)
 	var footer string
-	if m.showHelp {
-		footer = m.renderFullHelp()
-	} else {
-		footer = m.renderReviewFooter()
+	if !m.editingTags {
+		if m.showHelp {
+			footer = m.renderFullHelp()
+		} else {
+			footer = m.renderReviewFooter()
+		}
 	}
 
 	parts := []string{header, list}
@@ -929,7 +1007,9 @@ func (m *Model) reviewingView() string {
 	if statusLine != "" {
 		parts = append(parts, statusLine)
 	}
-	parts = append(parts, footer)
+	if footer != "" {
+		parts = append(parts, footer)
+	}
 
 	content := strings.Join(parts, "\n")
 
@@ -1055,6 +1135,7 @@ func (m *Model) renderReviewFooter() string {
 	}
 
 	line2 = []helpEntry{
+		{"enter", "tags"},
 		{"e", "export"},
 		{"i", "import"},
 		{"o", "open"},
@@ -1094,6 +1175,7 @@ func (m *Model) renderFullHelp() string {
 			{"3", "low"},
 		}},
 		{"Operations", []helpEntry{
+			{"enter", "edit tags"},
 			{"e", "export to clipboard"},
 			{"i", "import from clipboard"},
 			{"o", "open URL in browser"},

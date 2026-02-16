@@ -1983,3 +1983,184 @@ func TestConfigDaysDirectInput(t *testing.T) {
 		t.Errorf("expected lookback 4, got %d", m.activeLookback())
 	}
 }
+
+func TestEnterKeyEntersTagEditingMode(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Item 1", Tags: []string{"go", "tutorial"}},
+	}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.editingTags {
+		t.Fatal("expected editingTags to be true after Enter")
+	}
+	if m.tagsInput != "go, tutorial" {
+		t.Errorf("expected tagsInput 'go, tutorial', got %q", m.tagsInput)
+	}
+}
+
+func TestTagEditingTypingAndConfirm(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Item 1"},
+	}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	// Enter editing mode
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Type "rust, wasm"
+	for _, ch := range "rust, wasm" {
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	if m.tagsInput != "rust, wasm" {
+		t.Fatalf("expected tagsInput 'rust, wasm', got %q", m.tagsInput)
+	}
+
+	// Confirm with Enter
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.editingTags {
+		t.Fatal("expected editingTags to be false after confirm")
+	}
+	if len(m.items[0].Tags) != 2 || m.items[0].Tags[0] != "rust" || m.items[0].Tags[1] != "wasm" {
+		t.Errorf("expected tags [rust wasm], got %v", m.items[0].Tags)
+	}
+}
+
+func TestTagEditingEscCancels(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Item 1", Tags: []string{"original"}},
+	}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Type something
+	for _, ch := range "new" {
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	// Cancel
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.editingTags {
+		t.Fatal("expected editingTags to be false after Esc")
+	}
+	// Tags should be unchanged
+	if len(m.items[0].Tags) != 1 || m.items[0].Tags[0] != "original" {
+		t.Errorf("expected tags [original], got %v", m.items[0].Tags)
+	}
+}
+
+func TestTagEditingBackspace(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Item 1"},
+	}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	for _, ch := range "abc" {
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	if m.tagsInput != "abc" {
+		t.Fatalf("expected tagsInput 'abc', got %q", m.tagsInput)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.tagsInput != "ab" {
+		t.Errorf("expected tagsInput 'ab' after backspace, got %q", m.tagsInput)
+	}
+
+	// Backspace on empty should not panic
+	m.tagsInput = ""
+	m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.tagsInput != "" {
+		t.Errorf("expected empty tagsInput after backspace on empty, got %q", m.tagsInput)
+	}
+}
+
+func TestTagEditingBatchMode(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Item 1", Tags: []string{"old"}},
+		{ID: "2", Title: "Item 2", Tags: []string{"old"}},
+	}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	// Select both items
+	m.listView.SetCursor(0)
+	m.listView.ToggleSelection()
+	m.listView.SetCursor(1)
+	m.listView.ToggleSelection()
+	m.batchMode = true
+
+	// Enter tag editing — batch mode starts with empty input
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.editingTags {
+		t.Fatal("expected editingTags true")
+	}
+	if m.tagsInput != "" {
+		t.Errorf("expected empty tagsInput in batch mode, got %q", m.tagsInput)
+	}
+
+	// Type tags and confirm
+	for _, ch := range "new1, new2" {
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	for i, item := range m.items {
+		if len(item.Tags) != 2 || item.Tags[0] != "new1" || item.Tags[1] != "new2" {
+			t.Errorf("item %d: expected tags [new1 new2], got %v", i, item.Tags)
+		}
+	}
+}
+
+func TestTagEditingViewPopup(t *testing.T) {
+	m := NewModel()
+	m.state = StateReviewing
+	m.width = 100
+	m.height = 40
+	m.items = []Item{{ID: "1", Title: "Test", Tags: []string{"go"}}}
+	m.listView.SetItems(m.items)
+	m.editingTags = true
+	m.tagsInput = "go, rust"
+
+	view := m.View()
+	if !strings.Contains(view, "Edit Tags") {
+		t.Error("expected tag editing popup to contain 'Edit Tags'")
+	}
+	if !strings.Contains(view, "go, rust") {
+		t.Error("expected tag editing popup to contain input text")
+	}
+}
+
+func TestParseTags(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"go, rust", []string{"go", "rust"}},
+		{"  go , rust , ", []string{"go", "rust"}},
+		{"", nil},
+		{",,,", nil},
+		{"single", []string{"single"}},
+	}
+	for _, tt := range tests {
+		got := parseTags(tt.input)
+		if len(got) != len(tt.want) {
+			t.Errorf("parseTags(%q) = %v, want %v", tt.input, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("parseTags(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+			}
+		}
+	}
+}
