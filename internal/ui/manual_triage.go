@@ -256,9 +256,15 @@ func (m *Model) ImportTriageResults(jsonData string) (int, error) {
 		item.Action = result.TriageDecision.Action
 		item.Priority = result.TriageDecision.Priority
 
-		// Apply suggested tags if provided
+		// Apply suggested tags if provided, filtering out action-name duplicates
 		if len(result.MetadataEnhancement.SuggestedTags) > 0 {
-			item.Tags = result.MetadataEnhancement.SuggestedTags
+			var filtered []string
+			for _, tag := range result.MetadataEnhancement.SuggestedTags {
+				if !validActions[strings.ToLower(strings.TrimSpace(tag))] {
+					filtered = append(filtered, tag)
+				}
+			}
+			item.Tags = filtered
 		}
 
 		// Save to triage store

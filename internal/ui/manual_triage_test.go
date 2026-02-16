@@ -303,6 +303,49 @@ func TestImportTriageResults_WithSuggestedTags(t *testing.T) {
 	}
 }
 
+func TestImportTriageResults_FiltersActionNameTags(t *testing.T) {
+	m := &Model{
+		items: []Item{
+			{ID: "1", Title: "Article"},
+		},
+	}
+	m.listView = NewListView(80, 20)
+	m.listView.SetItems(m.items)
+
+	jsonData := `[
+		{
+			"id": "1",
+			"title": "Article",
+			"triage_decision": {
+				"action": "later",
+				"priority": "medium"
+			},
+			"metadata_enhancement": {
+				"suggested_tags": ["later", "golang", "archive", "read_now", "tutorial"]
+			}
+		}
+	]`
+
+	applied, err := m.ImportTriageResults(jsonData)
+	if err != nil {
+		t.Fatalf("ImportTriageResults failed: %v", err)
+	}
+	if applied != 1 {
+		t.Errorf("expected 1 item applied, got %d", applied)
+	}
+
+	// "later", "archive", "read_now" should be filtered out
+	if len(m.items[0].Tags) != 2 {
+		t.Errorf("expected 2 tags, got %d: %v", len(m.items[0].Tags), m.items[0].Tags)
+	}
+	expectedTags := map[string]bool{"golang": true, "tutorial": true}
+	for _, tag := range m.items[0].Tags {
+		if !expectedTags[tag] {
+			t.Errorf("unexpected tag: %s", tag)
+		}
+	}
+}
+
 func TestSanitizeLLMJSON(t *testing.T) {
 	tests := []struct {
 		name  string
