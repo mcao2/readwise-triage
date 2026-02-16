@@ -572,8 +572,11 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Tag editing mode intercept
 	if m.editingTags {
 		runes := []rune(m.tagsInput)
-		switch msg.Type {
-		case tea.KeyEnter:
+		// Use msg.String() for word-jump bindings so both CSI sequences
+		// (alt+left/alt+right) and ESC+letter sequences (alt+b/alt+f)
+		// are handled — macOS terminals commonly send the latter.
+		switch s := msg.String(); {
+		case msg.Type == tea.KeyEnter:
 			tags := parseTags(m.tagsInput)
 			if m.batchMode {
 				m.applyBatchTags(tags)
@@ -585,32 +588,30 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.editingTags = false
 			m.tagsInput = ""
 			m.tagsCursor = 0
-		case tea.KeyEsc:
+		case msg.Type == tea.KeyEsc:
 			m.editingTags = false
 			m.tagsInput = ""
 			m.tagsCursor = 0
-		case tea.KeyBackspace:
+		case msg.Type == tea.KeyBackspace:
 			if m.tagsCursor > 0 {
 				runes = append(runes[:m.tagsCursor-1], runes[m.tagsCursor:]...)
 				m.tagsCursor--
 				m.tagsInput = string(runes)
 			}
-		case tea.KeyLeft:
-			if msg.Alt {
-				// Option+Left: jump to previous word boundary
-				m.tagsCursor = prevWordBoundary(runes, m.tagsCursor)
-			} else if m.tagsCursor > 0 {
+		case s == "alt+left" || s == "alt+b":
+			m.tagsCursor = prevWordBoundary(runes, m.tagsCursor)
+		case s == "alt+right" || s == "alt+f":
+			m.tagsCursor = nextWordBoundary(runes, m.tagsCursor)
+		case msg.Type == tea.KeyLeft:
+			if m.tagsCursor > 0 {
 				m.tagsCursor--
 			}
-		case tea.KeyRight:
-			if msg.Alt {
-				// Option+Right: jump to next word boundary
-				m.tagsCursor = nextWordBoundary(runes, m.tagsCursor)
-			} else if m.tagsCursor < len(runes) {
+		case msg.Type == tea.KeyRight:
+			if m.tagsCursor < len(runes) {
 				m.tagsCursor++
 			}
 		default:
-			if s := msg.String(); len(s) == 1 && s[0] >= 32 {
+			if len(s) == 1 && s[0] >= 32 {
 				r := []rune(s)[0]
 				runes = append(runes[:m.tagsCursor], append([]rune{r}, runes[m.tagsCursor:]...)...)
 				m.tagsCursor++

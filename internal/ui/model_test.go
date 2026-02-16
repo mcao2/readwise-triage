@@ -2239,56 +2239,94 @@ func TestTagEditingArrowKeys(t *testing.T) {
 }
 
 func TestTagEditingWordJump(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Item 1"}}
-	m.listView.SetItems(m.items)
-	m.state = StateReviewing
-
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	// Type "go, rust, wasm"
-	for _, ch := range "go, rust, wasm" {
-		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
-	}
-	// Cursor at end (14)
-	if m.tagsCursor != 14 {
-		t.Fatalf("expected tagsCursor 14, got %d", m.tagsCursor)
+	// Helper to set up a model in tag-editing mode with "go, rust, wasm"
+	setup := func() *Model {
+		m := NewModel()
+		m.items = []Item{{ID: "1", Title: "Item 1"}}
+		m.listView.SetItems(m.items)
+		m.state = StateReviewing
+		m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		for _, ch := range "go, rust, wasm" {
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		}
+		return m
 	}
 
-	// Option+Left: jump back one word (to start of "wasm")
-	m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
-	if m.tagsCursor != 10 {
-		t.Errorf("expected tagsCursor 10 after opt+left, got %d", m.tagsCursor)
-	}
+	// CSI path: alt+left / alt+right (KeyLeft/KeyRight with Alt flag)
+	t.Run("CSI_sequences", func(t *testing.T) {
+		m := setup()
+		if m.tagsCursor != 14 {
+			t.Fatalf("expected tagsCursor 14, got %d", m.tagsCursor)
+		}
 
-	// Option+Left again: jump to start of "rust"
-	m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
-	if m.tagsCursor != 4 {
-		t.Errorf("expected tagsCursor 4 after opt+left, got %d", m.tagsCursor)
-	}
+		m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
+		if m.tagsCursor != 10 {
+			t.Errorf("expected tagsCursor 10 after alt+left, got %d", m.tagsCursor)
+		}
 
-	// Option+Left again: jump to start of "go"
-	m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
-	if m.tagsCursor != 0 {
-		t.Errorf("expected tagsCursor 0 after opt+left, got %d", m.tagsCursor)
-	}
+		m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
+		if m.tagsCursor != 4 {
+			t.Errorf("expected tagsCursor 4 after alt+left, got %d", m.tagsCursor)
+		}
 
-	// Option+Right: jump to end of "go"
-	m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
-	if m.tagsCursor != 2 {
-		t.Errorf("expected tagsCursor 2 after opt+right, got %d", m.tagsCursor)
-	}
+		m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
+		if m.tagsCursor != 0 {
+			t.Errorf("expected tagsCursor 0 after alt+left, got %d", m.tagsCursor)
+		}
 
-	// Option+Right: jump to end of "rust"
-	m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
-	if m.tagsCursor != 8 {
-		t.Errorf("expected tagsCursor 8 after opt+right, got %d", m.tagsCursor)
-	}
+		m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
+		if m.tagsCursor != 2 {
+			t.Errorf("expected tagsCursor 2 after alt+right, got %d", m.tagsCursor)
+		}
 
-	// Option+Right: jump to end of "wasm"
-	m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
-	if m.tagsCursor != 14 {
-		t.Errorf("expected tagsCursor 14 after opt+right, got %d", m.tagsCursor)
-	}
+		m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
+		if m.tagsCursor != 8 {
+			t.Errorf("expected tagsCursor 8 after alt+right, got %d", m.tagsCursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
+		if m.tagsCursor != 14 {
+			t.Errorf("expected tagsCursor 14 after alt+right, got %d", m.tagsCursor)
+		}
+	})
+
+	// ESC+letter path: alt+b / alt+f (macOS terminals send ESC b / ESC f)
+	t.Run("ESC_letter_sequences", func(t *testing.T) {
+		m := setup()
+		if m.tagsCursor != 14 {
+			t.Fatalf("expected tagsCursor 14, got %d", m.tagsCursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}, Alt: true})
+		if m.tagsCursor != 10 {
+			t.Errorf("expected tagsCursor 10 after alt+b, got %d", m.tagsCursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}, Alt: true})
+		if m.tagsCursor != 4 {
+			t.Errorf("expected tagsCursor 4 after alt+b, got %d", m.tagsCursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}, Alt: true})
+		if m.tagsCursor != 0 {
+			t.Errorf("expected tagsCursor 0 after alt+b, got %d", m.tagsCursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}, Alt: true})
+		if m.tagsCursor != 2 {
+			t.Errorf("expected tagsCursor 2 after alt+f, got %d", m.tagsCursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}, Alt: true})
+		if m.tagsCursor != 8 {
+			t.Errorf("expected tagsCursor 8 after alt+f, got %d", m.tagsCursor)
+		}
+
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}, Alt: true})
+		if m.tagsCursor != 14 {
+			t.Errorf("expected tagsCursor 14 after alt+f, got %d", m.tagsCursor)
+		}
+	})
 }
 
 func TestWordBoundaryHelpers(t *testing.T) {
