@@ -1068,8 +1068,8 @@ func (m *Model) reviewingView() string {
 
 	content := strings.Join(parts, "\n")
 
-	// Tag editing popup — centered overlay on the full screen
-	if m.editingTags {
+	// Tag editing popup — overlaid on top of the review view
+	if m.editingTags && m.height > 0 {
 		runes := []rune(m.tagsInput)
 		before := string(runes[:m.tagsCursor])
 		after := string(runes[m.tagsCursor:])
@@ -1084,11 +1084,31 @@ func (m *Model) reviewingView() string {
 				helpLine,
 			),
 		)
+
+		// Split both the background and popup into lines
+		bgLines := strings.Split(content, "\n")
+		for len(bgLines) < m.height {
+			bgLines = append(bgLines, "")
+		}
+		bgLines = bgLines[:m.height]
+
+		popupLines := strings.Split(popup, "\n")
+		popupH := len(popupLines)
+
 		w := m.width - 1
 		if w < 1 {
 			w = 1
 		}
-		content = lipgloss.Place(w, m.height, lipgloss.Center, lipgloss.Center, popup)
+
+		// Center the popup lines horizontally and stamp them over the background
+		startY := (m.height - popupH) / 2
+		for i, pLine := range popupLines {
+			row := startY + i
+			if row >= 0 && row < m.height {
+				bgLines[row] = lipgloss.PlaceHorizontal(w, lipgloss.Center, pLine)
+			}
+		}
+		content = strings.Join(bgLines, "\n")
 	}
 
 	// Pad output to exactly m.height lines so the alternate screen buffer
