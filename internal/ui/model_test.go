@@ -1895,3 +1895,28 @@ func TestIndependentLookbackPerLocation(t *testing.T) {
 		t.Errorf("expected inbox lookback still %d, got %d", initialLookback+7, m.fetchLookback)
 	}
 }
+
+func TestConfigDaysAdjust(t *testing.T) {
+	m := NewModel()
+	m.state = StateConfig
+	initial := m.activeLookback()
+
+	// Up increases by 7
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	if m.activeLookback() != initial+7 {
+		t.Errorf("expected lookback %d after Up, got %d", initial+7, m.activeLookback())
+	}
+
+	// Down decreases by 7
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	if m.activeLookback() != initial {
+		t.Errorf("expected lookback %d after Down, got %d", initial, m.activeLookback())
+	}
+
+	// Down should not go below 1
+	m.fetchLookback = 3
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	if m.activeLookback() < 1 {
+		t.Errorf("expected lookback >= 1, got %d", m.activeLookback())
+	}
+}

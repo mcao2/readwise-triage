@@ -343,6 +343,15 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.fetchLocation = "new"
 		}
+	case keyMatches(msg, m.keys.Up):
+		*m.activeLookbackPtr() += 7
+	case keyMatches(msg, m.keys.Down):
+		if m.activeLookback() > 1 {
+			*m.activeLookbackPtr() -= 7
+			if m.activeLookback() < 1 {
+				*m.activeLookbackPtr() = 1
+			}
+		}
 	}
 	return m, nil
 }
@@ -751,6 +760,7 @@ func (m *Model) configView() string {
 	help := m.renderHelpLine([]helpEntry{
 		{"enter", "start"},
 		{"h/l", "location"},
+		{"j/k", "days"},
 		{"t", "theme"},
 		{"q", "quit"},
 	})
