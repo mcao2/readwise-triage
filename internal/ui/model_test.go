@@ -1999,6 +1999,10 @@ func TestEnterKeyEntersTagEditingMode(t *testing.T) {
 	if m.tagsInput != "go, tutorial" {
 		t.Errorf("expected tagsInput 'go, tutorial', got %q", m.tagsInput)
 	}
+	// Cursor should be at end
+	if m.tagsCursor != len([]rune(m.tagsInput)) {
+		t.Errorf("expected tagsCursor %d, got %d", len([]rune(m.tagsInput)), m.tagsCursor)
+	}
 }
 
 func TestTagEditingTypingAndConfirm(t *testing.T) {
@@ -2074,12 +2078,24 @@ func TestTagEditingBackspace(t *testing.T) {
 	if m.tagsInput != "ab" {
 		t.Errorf("expected tagsInput 'ab' after backspace, got %q", m.tagsInput)
 	}
+	if m.tagsCursor != 2 {
+		t.Errorf("expected tagsCursor 2, got %d", m.tagsCursor)
+	}
 
-	// Backspace on empty should not panic
-	m.tagsInput = ""
+	// Move cursor to middle and backspace
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
 	m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	if m.tagsInput != "" {
-		t.Errorf("expected empty tagsInput after backspace on empty, got %q", m.tagsInput)
+	if m.tagsInput != "b" {
+		t.Errorf("expected tagsInput 'b' after mid-backspace, got %q", m.tagsInput)
+	}
+	if m.tagsCursor != 0 {
+		t.Errorf("expected tagsCursor 0, got %d", m.tagsCursor)
+	}
+
+	// Backspace at position 0 should not panic or change anything
+	m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.tagsInput != "b" {
+		t.Errorf("expected tagsInput 'b' unchanged, got %q", m.tagsInput)
 	}
 }
 
@@ -2162,5 +2178,147 @@ func TestParseTags(t *testing.T) {
 				t.Errorf("parseTags(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
 			}
 		}
+	}
+}
+
+func TestTagEditingArrowKeys(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{{ID: "1", Title: "Item 1"}}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	for _, ch := range "abc" {
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	// Cursor at 3 (end)
+	if m.tagsCursor != 3 {
+		t.Fatalf("expected tagsCursor 3, got %d", m.tagsCursor)
+	}
+
+	// Left moves cursor back
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if m.tagsCursor != 2 {
+		t.Errorf("expected tagsCursor 2 after Left, got %d", m.tagsCursor)
+	}
+
+	// Right moves cursor forward
+	m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if m.tagsCursor != 3 {
+		t.Errorf("expected tagsCursor 3 after Right, got %d", m.tagsCursor)
+	}
+
+	// Right at end stays at end
+	m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if m.tagsCursor != 3 {
+		t.Errorf("expected tagsCursor 3 at boundary, got %d", m.tagsCursor)
+	}
+
+	// Left to beginning
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if m.tagsCursor != 0 {
+		t.Errorf("expected tagsCursor 0, got %d", m.tagsCursor)
+	}
+
+	// Left at beginning stays at 0
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if m.tagsCursor != 0 {
+		t.Errorf("expected tagsCursor 0 at boundary, got %d", m.tagsCursor)
+	}
+
+	// Insert at cursor position
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	if m.tagsInput != "xabc" {
+		t.Errorf("expected tagsInput 'xabc', got %q", m.tagsInput)
+	}
+	if m.tagsCursor != 1 {
+		t.Errorf("expected tagsCursor 1 after insert, got %d", m.tagsCursor)
+	}
+}
+
+func TestTagEditingWordJump(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{{ID: "1", Title: "Item 1"}}
+	m.listView.SetItems(m.items)
+	m.state = StateReviewing
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Type "go, rust, wasm"
+	for _, ch := range "go, rust, wasm" {
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	// Cursor at end (14)
+	if m.tagsCursor != 14 {
+		t.Fatalf("expected tagsCursor 14, got %d", m.tagsCursor)
+	}
+
+	// Option+Left: jump back one word (to start of "wasm")
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
+	if m.tagsCursor != 10 {
+		t.Errorf("expected tagsCursor 10 after opt+left, got %d", m.tagsCursor)
+	}
+
+	// Option+Left again: jump to start of "rust"
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
+	if m.tagsCursor != 4 {
+		t.Errorf("expected tagsCursor 4 after opt+left, got %d", m.tagsCursor)
+	}
+
+	// Option+Left again: jump to start of "go"
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
+	if m.tagsCursor != 0 {
+		t.Errorf("expected tagsCursor 0 after opt+left, got %d", m.tagsCursor)
+	}
+
+	// Option+Right: jump to end of "go"
+	m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
+	if m.tagsCursor != 2 {
+		t.Errorf("expected tagsCursor 2 after opt+right, got %d", m.tagsCursor)
+	}
+
+	// Option+Right: jump to end of "rust"
+	m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
+	if m.tagsCursor != 8 {
+		t.Errorf("expected tagsCursor 8 after opt+right, got %d", m.tagsCursor)
+	}
+
+	// Option+Right: jump to end of "wasm"
+	m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
+	if m.tagsCursor != 14 {
+		t.Errorf("expected tagsCursor 14 after opt+right, got %d", m.tagsCursor)
+	}
+}
+
+func TestWordBoundaryHelpers(t *testing.T) {
+	runes := []rune("go, rust, wasm")
+
+	// prevWordBoundary
+	if got := prevWordBoundary(runes, 14); got != 10 {
+		t.Errorf("prevWordBoundary(14) = %d, want 10", got)
+	}
+	if got := prevWordBoundary(runes, 10); got != 4 {
+		t.Errorf("prevWordBoundary(10) = %d, want 4", got)
+	}
+	if got := prevWordBoundary(runes, 4); got != 0 {
+		t.Errorf("prevWordBoundary(4) = %d, want 0", got)
+	}
+	if got := prevWordBoundary(runes, 0); got != 0 {
+		t.Errorf("prevWordBoundary(0) = %d, want 0", got)
+	}
+
+	// nextWordBoundary
+	if got := nextWordBoundary(runes, 0); got != 2 {
+		t.Errorf("nextWordBoundary(0) = %d, want 2", got)
+	}
+	if got := nextWordBoundary(runes, 2); got != 8 {
+		t.Errorf("nextWordBoundary(2) = %d, want 8", got)
+	}
+	if got := nextWordBoundary(runes, 8); got != 14 {
+		t.Errorf("nextWordBoundary(8) = %d, want 14", got)
+	}
+	if got := nextWordBoundary(runes, 14); got != 14 {
+		t.Errorf("nextWordBoundary(14) = %d, want 14", got)
 	}
 }

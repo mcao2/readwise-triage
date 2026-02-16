@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
@@ -86,6 +87,7 @@ type Model struct {
 	daysInput         string
 	editingTags       bool
 	tagsInput         string
+	tagsCursor        int
 }
 
 type Item struct {
@@ -569,6 +571,7 @@ func (m *Model) waitForUpdateProgress(ch chan readwise.BatchUpdateProgress, succ
 func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Tag editing mode intercept
 	if m.editingTags {
+		runes := []rune(m.tagsInput)
 		switch msg.Type {
 		case tea.KeyEnter:
 			tags := parseTags(m.tagsInput)
@@ -581,16 +584,37 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.editingTags = false
 			m.tagsInput = ""
+			m.tagsCursor = 0
 		case tea.KeyEsc:
 			m.editingTags = false
 			m.tagsInput = ""
+			m.tagsCursor = 0
 		case tea.KeyBackspace:
-			if len(m.tagsInput) > 0 {
-				m.tagsInput = m.tagsInput[:len(m.tagsInput)-1]
+			if m.tagsCursor > 0 {
+				runes = append(runes[:m.tagsCursor-1], runes[m.tagsCursor:]...)
+				m.tagsCursor--
+				m.tagsInput = string(runes)
+			}
+		case tea.KeyLeft:
+			if msg.Alt {
+				// Option+Left: jump to previous word boundary
+				m.tagsCursor = prevWordBoundary(runes, m.tagsCursor)
+			} else if m.tagsCursor > 0 {
+				m.tagsCursor--
+			}
+		case tea.KeyRight:
+			if msg.Alt {
+				// Option+Right: jump to next word boundary
+				m.tagsCursor = nextWordBoundary(runes, m.tagsCursor)
+			} else if m.tagsCursor < len(runes) {
+				m.tagsCursor++
 			}
 		default:
 			if s := msg.String(); len(s) == 1 && s[0] >= 32 {
-				m.tagsInput += s
+				r := []rune(s)[0]
+				runes = append(runes[:m.tagsCursor], append([]rune{r}, runes[m.tagsCursor:]...)...)
+				m.tagsCursor++
+				m.tagsInput = string(runes)
 			}
 		}
 		return m, nil
@@ -602,8 +626,10 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.editingTags = true
 		if m.batchMode {
 			m.tagsInput = ""
+			m.tagsCursor = 0
 		} else if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 			m.tagsInput = strings.Join(item.Tags, ", ")
+			m.tagsCursor = len([]rune(m.tagsInput))
 		}
 		return m, nil
 	case keyMatches(msg, m.keys.Up):
@@ -762,6 +788,41 @@ func parseTags(input string) []string {
 		}
 	}
 	return tags
+}
+
+// prevWordBoundary returns the cursor position at the start of the previous word.
+func prevWordBoundary(runes []rune, pos int) int {
+	if pos <= 0 {
+		return 0
+	}
+	i := pos - 1
+	// Skip trailing whitespace/punctuation
+	for i > 0 && !unicode.IsLetter(runes[i]) && !unicode.IsDigit(runes[i]) {
+		i--
+	}
+	// Skip the word
+	for i > 0 && (unicode.IsLetter(runes[i-1]) || unicode.IsDigit(runes[i-1])) {
+		i--
+	}
+	return i
+}
+
+// nextWordBoundary returns the cursor position at the end of the next word.
+func nextWordBoundary(runes []rune, pos int) int {
+	n := len(runes)
+	if pos >= n {
+		return n
+	}
+	i := pos
+	// Skip current whitespace/punctuation
+	for i < n && !unicode.IsLetter(runes[i]) && !unicode.IsDigit(runes[i]) {
+		i++
+	}
+	// Skip the word
+	for i < n && (unicode.IsLetter(runes[i]) || unicode.IsDigit(runes[i])) {
+		i++
+	}
+	return i
 }
 
 func (m *Model) setItemAction(item *Item, action string) {
@@ -960,10 +1021,13 @@ func (m *Model) reviewingView() string {
 	// Detail pane (simple padded text, no border)
 	detail := ""
 	if m.editingTags {
-		// Tag editing popup replaces detail + footer
-		inputLine := fmt.Sprintf("tags: %s▌", m.tagsInput)
-		helpLine := m.renderHelpLine([]helpEntry{{"enter", "confirm"}, {"esc", "cancel"}})
-		detail = m.styles.Card.Render(
+		// Tag editing popup — centered, with cursor at tagsCursor position
+		runes := []rune(m.tagsInput)
+		before := string(runes[:m.tagsCursor])
+		after := string(runes[m.tagsCursor:])
+		inputLine := fmt.Sprintf("tags: %s▌%s", before, after)
+		helpLine := m.renderHelpLine([]helpEntry{{"enter", "confirm"}, {"esc", "cancel"}, {"←/→", "move"}, {"opt+←/→", "word"}})
+		popup := m.styles.Card.Render(
 			lipgloss.JoinVertical(lipgloss.Left,
 				m.styles.Title.Render("Edit Tags"),
 				"",
@@ -972,6 +1036,7 @@ func (m *Model) reviewingView() string {
 				helpLine,
 			),
 		)
+		detail = lipgloss.PlaceHorizontal(m.width-1, lipgloss.Center, popup)
 	} else if len(m.items) > 0 {
 		detailContent := m.listView.DetailView(m.width, m.styles)
 		if detailContent != "" {
