@@ -15,13 +15,16 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
   - Open articles directly in your browser (`o`).
 - **Quick Triage**: One-key shortcuts for actions (`r`, `l`, `a`) and priorities (`1`, `2`, `3`).
 - **Batch Operations**: Select multiple items with `x`/`space` to apply actions to all at once.
-- **Progressive Fetch**: Increase the lookback window to find older items (`f`).
+- **Feed Support**: Triage RSS/feed items in addition to inbox; toggle with `h`/`l` on the config screen.
+- **Progressive Fetch**: Increase the lookback window to find older items (`f`), with independent windows per location.
 
 ## Keyboard Interactions
 
 | Key | Context | Action |
 |-----|---------|--------|
 | `Enter` | Config | Start fetching items |
+| `h` / `l` | Config | Toggle location: **Inbox** / **Feed** |
+| `j` / `k` | Config | Adjust lookback days (-7 / +7) |
 | `t` | Config | Cycle through color themes |
 | `j` / `k` | Review | Navigate down / up |
 | `x` / `Space` | Review | Toggle selection (Batch mode) |
@@ -83,13 +86,14 @@ theme: "default"
 
 ### Persistence
 
-Triage decisions are saved to `~/.config/readwise-triage/triage_store.json`. This allows you to:
+Triage decisions are saved to `~/.config/readwise-triage/triage.db` (SQLite). This allows you to:
 1. Re-open the tool and see your previous decisions.
 2. Only export "raw" items that haven't been triaged yet.
 
 ## Workflow
 
-1. **Fetch**: Load inbox items from Readwise.
+1. **Configure**: Choose location (Inbox or Feed), adjust lookback days, pick a theme.
+2. **Fetch**: Load items from Readwise.
 2. **Export (`e`)**: Copy untriaged items and the triage prompt to your clipboard.
 3. **LLM**: Paste into any LLM (ChatGPT, Claude, Gemini, etc.), then copy the resulting JSON array.
 4. **Import (`i`)**: Paste the results back into the tool.
