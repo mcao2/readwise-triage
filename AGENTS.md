@@ -48,22 +48,16 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 ### 3. TUI (Bubble Tea) Architecture
 - **State Management**: The `Model` struct in `internal/ui/model.go` is the central state.
 - **Component Communication**: Use `tea.Cmd` and messages (e.g., `ItemsLoadedMsg`) to handle asynchronous operations like API calls.
-- **View Logic**: Keep `View()` methods pure. Delegate layout to sub-methods (e.g., `reviewingView()`) and use `lipgloss` for styling.
+- **View Logic**: Keep `View()` methods pure. Delegate layout to sub-methods (e.g., `reviewingView()`) and use `lipgloss` for styling. Non-review views are centered on screen via `lipgloss.Place` in the top-level `View()`.
 - **Pointer Consistency**: Always ensure `Update`, `View`, and `Init` use pointer receivers to avoid state loss during render cycles.
 - **Stable Sorting**: When iterating over maps for UI elements (e.g., theme names), ALWAYS sort the keys first. Go map iteration is random and causes unstable UI behavior/test failures.
 - **Selection Awareness**: Batch actions (`e`, `o`, `u`) MUST respect the selection state. Use `m.listView.GetSelected()` to determine if a targeted subset of items should be processed.
-- **Spinner & Progress**: Use `bubbles/spinner` for loading states and `bubbles/progress` for progress bars. The spinner must be ticked via `Init()` returning `m.spinner.Tick`, and both spinner and progress `TickMsg`/`FrameMsg` must be handled in `Update()`.
-- **Theme Propagation**: When cycling themes, update ALL theme-dependent components: `m.styles`, `m.listView.UpdateTableStyles()`, and `m.spinner.Style`. Missing any causes visual inconsistency.
-- **Layout Structure**: The reviewing view uses a header bar (app name + count), table, detail pane, status line, and footer. Use `strings.Join(parts, "\n")` to compose these (NOT `lipgloss.JoinVertical` — see Terminal Width below). Other views use `m.styles.Border` or `m.styles.Card` for centered panel layouts.
-- **Help System**: The `?` key toggles `m.showHelp` between a compact two-line footer (`renderReviewFooter`) and a full categorized overlay (`renderFullHelp`). Help entries use the `helpEntry{key, desc}` struct rendered via `renderHelpLine`.
-- **Popup Overlays**: Modal popups (e.g., tag editor) should overlay on top of the existing view, not replace it. Render the background view first, split into lines, then stamp the centered popup lines over the middle rows. Use `lipgloss.PlaceHorizontal` per-line for horizontal centering within the overlay.
-- **View Centering**: Non-review views (config, fetching, confirming, updating, done, message) are centered on screen via `lipgloss.Place(m.width, m.height, ...)` in the top-level `View()` method. Don't duplicate centering logic in individual view functions.
-- **macOS Terminal Key Sequences**: macOS terminals send ESC+b / ESC+f for Option+Left/Right (parsed by Bubble Tea as `alt+b`/`alt+f` with `KeyRunes` type), NOT `KeyLeft`/`KeyRight` with `Alt=true`. Similarly, Option+Delete comes through as `alt+backspace`. When handling modifier+key combos, match on `msg.String()` (e.g., `"alt+left"`, `"alt+b"`) to cover both CSI and ESC-letter sequences. Follow the pattern in `bubbles/textinput`.
-- **Detail Pane**: `ListView.DetailView()` renders item metadata below the table. It pads to a fixed `detailPaneHeight` (4 lines) so the total view height stays constant across items with varying metadata.
-- **Column Widths**: Let the table column `Width` handle padding — don't hardcode trailing spaces in cell text. Use `runewidth.FillRight` only to pad to the column width.
-- **Terminal Width — The Last Column Problem**: NEVER render any line at exactly the terminal width. When a line fills the last column, many terminal emulators (macOS Terminal, iTerm2, etc.) add an implicit line wrap, which breaks Bubble Tea's line tracking and causes visual corruption (stale content, multiple highlighted rows, header disappearing). Always use `m.width - 1` for `HeaderBar.Width()`, `FooterBar.Width()`, dividers, and ensure column widths + cell padding sum to less than terminal width. Avoid `lipgloss.JoinVertical` for full-screen layouts — it pads every line to the widest element's width, which can push lines to the terminal edge.
-- **Custom Table Rendering**: The bubbles `table.Model` is used for row data storage, but its `View()` is bypassed. `ListView.View()` renders the header and visible rows directly with simple scrolling logic, avoiding the bubbles viewport's broken `YOffset` calculations.
-- **Fixed-Height Output**: `reviewingView()` pads its output to exactly `m.height` lines so the alternate screen buffer repaints cleanly every frame.
+- **Spinner & Progress**: Use `bubbles/spinner` for loading states and `bubbles/progress` for progress bars. Tick via `Init()` and handle `TickMsg`/`FrameMsg` in `Update()`.
+- **Theme Propagation**: When cycling themes, update ALL theme-dependent components: `m.styles`, `m.listView.UpdateTableStyles()`, and `m.spinner.Style`.
+- **Layout & Terminal Width**: The reviewing view composes header, table, detail pane, status, and footer via `strings.Join` (NOT `lipgloss.JoinVertical` — it pads to widest line). NEVER render lines at exactly terminal width; use `m.width - 1` for bars/dividers. The review view pads output to exactly `m.height` lines for clean repaints. The detail pane pads to a fixed height (4 lines) for stability.
+- **Table Rendering**: The bubbles `table.Model` stores row data, but `ListView.View()` renders rows directly with custom scrolling, bypassing the bubbles viewport. Let column `Width` handle padding — use `runewidth.FillRight` only to pad to column width.
+- **Popups & Overlays**: Modal popups (e.g., tag editor) overlay on top of the existing view. Render the background first, split into lines, then stamp centered popup lines over the middle rows. The `?` key toggles between a compact footer and a full help overlay.
+- **macOS Key Sequences**: macOS terminals send ESC+b/f for Option+Arrow, parsed as `alt+b`/`alt+f` (`KeyRunes` type), not `KeyLeft`/`KeyRight` with `Alt`. Match on `msg.String()` to cover both CSI and ESC-letter sequences. Same for `alt+backspace` (Option+Delete).
 
 ### 4. Testing Best Practices
 - **Logic over View**: Focus unit tests on `Update()` and helper methods that modify state. View rendering can be smoke-tested for non-empty output.
@@ -118,12 +112,6 @@ When adding shortcuts, update:
 
 ### Emoji Alignment
 Use `github.com/mattn/go-runewidth` for all string manipulations involving emojis (e.g., padding and truncation) to ensure visual alignment in the TUI.
-
-### Tag Editor
-- The `Enter` key in review view opens an inline tag editor popup (overlay on the review view).
-- Supports cursor navigation (arrow keys), word jump (Option+Arrow / Alt+b/f), word delete (Option+Delete), and standard backspace.
-- In batch mode, edited tags apply to all selected items.
-- Tags are comma-separated; empty strings are filtered out on confirm.
 
 ### Theme & Styles Architecture
 - Themes are defined in `internal/ui/styles.go` as `Theme` structs with color hex values. Each theme must include all fields including `Subtle` (used for borders/separators).
