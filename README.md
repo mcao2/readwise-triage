@@ -8,7 +8,7 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
   - Export untriaged items as JSON with a specialized prompt (`e`).
   - Paste to any LLM of your choice for categorization.
   - Import results back into the TUI (`i`).
-- **Persistence**: Triage decisions are saved locally across sessions.
+- **Persistence**: Triage decisions and preferences (location, lookback days, theme) are saved locally across sessions.
 - **Interactive List View**:
   - Navigate with vim-style keys (`j`/`k`).
   - Visual indicators for actions (🔥⏰📁) and priority (🔴🟡🟢).
@@ -87,11 +87,14 @@ feed_days_ago: 7
 
 # Optional: Color theme (default, catppuccin, dracula, nord, gruvbox)
 theme: "default"
+
+# Optional: Last-used location, remembered across sessions (new or feed)
+location: "new"
 ```
 
 ### Persistence
 
-Triage decisions are saved to `~/.config/readwise-triage/triage.db` (SQLite). This allows you to:
+Triage decisions are saved to `~/.config/readwise-triage/triage.db` (SQLite). Preferences (location, lookback days, theme) are saved to `config.yaml`. This allows you to:
 1. Re-open the tool and see your previous decisions.
 2. Only export "raw" items that haven't been triaged yet.
 
