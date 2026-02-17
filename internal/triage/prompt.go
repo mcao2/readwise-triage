@@ -99,12 +99,7 @@ const PromptTemplate = `You are my personal reading assistant. I will give you a
 ---
 
 **Output Format:**
-Return a JSON array, each element is the above format.
-
-After the JSON, also output:
-1. **Today's Top 3**: Most worth reading today (sorted by priority with reasons)
-2. **Quick Wins**: Items that can be quickly scanned in 5 minutes
-3. **Batch Delete**: List of item IDs recommended for direct deletion
+Return ONLY a JSON array, each element is the above format. No additional text, commentary, or summaries outside the JSON.
 
 ---
 
