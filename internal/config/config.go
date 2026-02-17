@@ -11,10 +11,11 @@ import (
 
 // LLMConfig holds LLM provider configuration
 type LLMConfig struct {
-	Provider string `yaml:"provider"` // "openai", "perplexity", "ollama", or any OpenAI-compatible
-	APIKey   string `yaml:"api_key"`
-	BaseURL  string `yaml:"base_url"` // custom endpoint; defaults per provider
-	Model    string `yaml:"model"`    // defaults per provider
+	Provider  string `yaml:"provider"` // "openai", "perplexity", "anthropic", "ollama", or any custom
+	APIKey    string `yaml:"api_key"`
+	BaseURL   string `yaml:"base_url"`   // custom endpoint; defaults per provider
+	Model     string `yaml:"model"`      // defaults per provider
+	APIFormat string `yaml:"api_format"` // "openai" (default) or "anthropic" — wire format for requests/responses
 }
 
 // Config holds application configuration
@@ -45,6 +46,9 @@ func (c *Config) GetLLMConfig() LLMConfig {
 	}
 	if model := os.Getenv("LLM_MODEL"); model != "" {
 		llm.Model = model
+	}
+	if apiFormat := os.Getenv("LLM_API_FORMAT"); apiFormat != "" {
+		llm.APIFormat = apiFormat
 	}
 
 	return llm
@@ -174,10 +178,11 @@ readwise_token: "your_token_here"
 # Supports any OpenAI-compatible API: openai, perplexity, ollama, openrouter, etc.
 # Environment variables LLM_API_KEY, LLM_PROVIDER, LLM_BASE_URL, LLM_MODEL also work.
 llm:
-  provider: "openai"       # "openai", "perplexity", "ollama", or custom
+  provider: "openai"       # "openai", "perplexity", "anthropic", "ollama", or custom
   api_key: ""              # required for cloud providers; not needed for ollama
   # base_url: ""           # override endpoint (defaults per provider)
   # model: ""              # override model (defaults per provider)
+  # api_format: ""         # wire format: "openai" (default) or "anthropic"
 
 # Optional: Default number of days to fetch for inbox (default: 7)
 inbox_days_ago: 7

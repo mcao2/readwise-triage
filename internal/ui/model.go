@@ -512,6 +512,7 @@ func (m *Model) startTriaging() tea.Cmd {
 			llmCfg.APIKey,
 			triage.WithLLMBaseURL(llmCfg.BaseURL),
 			triage.WithLLMModel(llmCfg.Model),
+			triage.WithLLMAPIFormat(llmCfg.APIFormat),
 		)
 		if err != nil {
 			return TriageFinishedMsg{Err: fmt.Errorf("failed to create LLM client: %w", err)}
