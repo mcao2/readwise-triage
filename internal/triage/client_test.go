@@ -340,39 +340,6 @@ func TestAutoTriagePromptTemplate(t *testing.T) {
 	}
 }
 
-func TestStripProxyNotifications(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "notification before JSON",
-			input: "\n\n---\n>\n### 📣 网站通知\n>\n> Some promo text\n>\n> \n<!-- notif:01138428 -->\n---\n\n[{\"id\":\"1\"}]",
-			want:  "[{\"id\":\"1\"}]",
-		},
-		{
-			name:  "no notification",
-			input: "[{\"id\":\"1\"}]",
-			want:  "[{\"id\":\"1\"}]",
-		},
-		{
-			name:  "notification only",
-			input: "\n---\n> promo\n<!-- notif:abc123 -->\n---\n",
-			want:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := stripProxyNotifications(tt.input)
-			if got != tt.want {
-				t.Errorf("stripProxyNotifications() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestLLMClientTriageItemsAnthropic(t *testing.T) {
 	triageResult := []Result{
 		{

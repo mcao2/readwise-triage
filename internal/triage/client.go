@@ -6,11 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -285,8 +281,6 @@ func (c *LLMClient) doRequest(body []byte) ([]Result, error) {
 		return nil, err
 	}
 
-	content = stripProxyNotifications(content)
-	debugLogResponse(content)
 	results, err := ParseTriageResponse(content)
 	if err != nil {
 		return nil, &errNoRetry{err: err}
@@ -332,28 +326,6 @@ func (c *LLMClient) extractContent(respBody []byte) (string, error) {
 		return "", fmt.Errorf("no choices in response")
 	}
 	return chatResp.Choices[0].Message.Content, nil
-}
-
-// debugLogResponse writes the raw LLM response content to a debug file
-// at ~/.config/readwise-triage/llm_response_debug.txt for troubleshooting.
-func debugLogResponse(content string) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return
-	}
-	debugPath := filepath.Join(home, ".config", "readwise-triage", "llm_response_debug.txt")
-	if err := os.WriteFile(debugPath, []byte(content), 0600); err != nil {
-		log.Printf("failed to write debug log: %v", err)
-	}
-}
-
-// stripProxyNotifications removes proxy-injected notification blocks from LLM response content.
-// Some API proxies inject promotional/notification content wrapped in markdown blockquotes
-// with HTML comments like <!-- notif:... -->. This strips those blocks.
-func stripProxyNotifications(content string) string {
-	// Remove blocks matching: ---\n> ...\n<!-- notif:... -->\n---
-	notifRegex := regexp.MustCompile(`(?s)\n*---\s*\n(?:>.*\n)*<!--\s*notif:\S+\s*-->\s*\n---\s*\n*`)
-	return strings.TrimSpace(notifRegex.ReplaceAllString(content, "\n"))
 }
 
 // parseAPIError extracts a human-readable message from an API error response.
