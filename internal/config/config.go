@@ -9,15 +9,64 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// LLMConfig holds LLM provider configuration
+type LLMConfig struct {
+	Provider string `yaml:"provider"` // "openai", "perplexity", "ollama", or any OpenAI-compatible
+	APIKey   string `yaml:"api_key"`
+	BaseURL  string `yaml:"base_url"` // custom endpoint; defaults per provider
+	Model    string `yaml:"model"`    // defaults per provider
+}
+
 // Config holds application configuration
 type Config struct {
-	ReadwiseToken    string `yaml:"readwise_token"`
-	PerplexityAPIKey string `yaml:"perplexity_api_key"`
-	InboxDaysAgo     int    `yaml:"inbox_days_ago"`
-	FeedDaysAgo      int    `yaml:"feed_days_ago"`
-	Theme            string `yaml:"theme"`
-	UseLLMTriage     bool   `yaml:"use_llm_triage"`
-	Location         string `yaml:"location"`
+	ReadwiseToken    string    `yaml:"readwise_token"`
+	PerplexityAPIKey string    `yaml:"perplexity_api_key"` // deprecated: use llm.api_key
+	LLM              LLMConfig `yaml:"llm"`
+	InboxDaysAgo     int       `yaml:"inbox_days_ago"`
+	FeedDaysAgo      int       `yaml:"feed_days_ago"`
+	Theme            string    `yaml:"theme"`
+	UseLLMTriage     bool      `yaml:"use_llm_triage"`
+	Location         string    `yaml:"location"`
+}
+
+// GetLLMConfig returns the effective LLM configuration, applying backward
+// compatibility for the legacy perplexity_api_key field.
+func (c *Config) GetLLMConfig() LLMConfig {
+	llm := c.LLM
+
+	// Env vars override config file
+	if key := os.Getenv("LLM_API_KEY"); key != "" {
+		llm.APIKey = key
+	}
+	if provider := os.Getenv("LLM_PROVIDER"); provider != "" {
+		llm.Provider = provider
+	}
+	if baseURL := os.Getenv("LLM_BASE_URL"); baseURL != "" {
+		llm.BaseURL = baseURL
+	}
+	if model := os.Getenv("LLM_MODEL"); model != "" {
+		llm.Model = model
+	}
+
+	// Backward compat: if no LLM config but perplexity_api_key is set
+	if llm.APIKey == "" && c.PerplexityAPIKey != "" {
+		llm.APIKey = c.PerplexityAPIKey
+		if llm.Provider == "" {
+			llm.Provider = "perplexity"
+		}
+	}
+
+	// Also check legacy env var
+	if llm.APIKey == "" {
+		if key := os.Getenv("PERPLEXITY_API_KEY"); key != "" {
+			llm.APIKey = key
+			if llm.Provider == "" {
+				llm.Provider = "perplexity"
+			}
+		}
+	}
+
+	return llm
 }
 
 // Load loads configuration from config file and environment variables
@@ -143,9 +192,17 @@ func SaveExampleConfig() error {
 # Required: Your Readwise API token
 readwise_token: "your_token_here"
 
-# Optional: Perplexity API key for LLM auto-triage
-# Get your key at: https://www.perplexity.ai/settings/api
-perplexity_api_key: "your_api_key_here"
+# Optional: LLM configuration for auto-triage (T key in review)
+# Supports any OpenAI-compatible API: openai, perplexity, ollama, openrouter, etc.
+# Environment variables LLM_API_KEY, LLM_PROVIDER, LLM_BASE_URL, LLM_MODEL also work.
+llm:
+  provider: "openai"       # "openai", "perplexity", "ollama", or custom
+  api_key: ""              # required for cloud providers; not needed for ollama
+  # base_url: ""           # override endpoint (defaults per provider)
+  # model: ""              # override model (defaults per provider)
+
+# Deprecated: use llm.api_key + llm.provider instead
+# perplexity_api_key: ""
 
 # Optional: Default number of days to fetch for inbox (default: 7)
 inbox_days_ago: 7

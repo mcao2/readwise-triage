@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -280,6 +281,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ErrorMsg:
 		m.statusMessage = msg.Error.Error()
 		m.state = StateConfig
+
+	case TriageFinishedMsg:
+		if msg.Err != nil {
+			m.statusMessage = fmt.Sprintf("LLM triage failed: %v", msg.Err)
+			m.messageType = "error"
+			m.state = StateMessage
+			return m, nil
+		}
+		applied := m.applyTriageResults(msg.Results)
+		m.statusMessage = fmt.Sprintf("LLM auto-triaged %d items", applied)
+		m.messageType = "success"
+		m.state = StateMessage
 	}
 
 	return m, nil
@@ -475,10 +488,43 @@ func (m *Model) startFetching() tea.Cmd {
 	}
 }
 
+// TriageFinishedMsg is sent when LLM auto-triage completes
+type TriageFinishedMsg struct {
+	Results []triage.Result
+	Err     error
+}
+
 func (m *Model) startTriaging() tea.Cmd {
 	m.state = StateTriaging
+
 	return func() tea.Msg {
-		return ErrorMsg{Error: fmt.Errorf("LLM triage not yet implemented")}
+		if m.cfg == nil {
+			return TriageFinishedMsg{Err: fmt.Errorf("configuration not loaded")}
+		}
+
+		llmCfg := m.cfg.GetLLMConfig()
+		if llmCfg.Provider == "" && llmCfg.APIKey == "" {
+			return TriageFinishedMsg{Err: fmt.Errorf("LLM not configured. Set llm.provider and llm.api_key in config.yaml or via LLM_API_KEY env var")}
+		}
+
+		client, err := triage.NewLLMClient(
+			llmCfg.Provider,
+			llmCfg.APIKey,
+			triage.WithLLMBaseURL(llmCfg.BaseURL),
+			triage.WithLLMModel(llmCfg.Model),
+		)
+		if err != nil {
+			return TriageFinishedMsg{Err: fmt.Errorf("failed to create LLM client: %w", err)}
+		}
+
+		// Build the items JSON (same logic as export)
+		itemsJSON, err := m.buildTriageItemsJSON()
+		if err != nil {
+			return TriageFinishedMsg{Err: err}
+		}
+
+		results, err := client.TriageItems(itemsJSON)
+		return TriageFinishedMsg{Results: results, Err: err}
 	}
 }
 
@@ -724,6 +770,8 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.startFetching()
 	case keyMatches(msg, m.keys.Refresh):
 		return m, m.startFetching()
+	case keyMatches(msg, m.keys.AutoTriage):
+		return m, m.startTriaging()
 	case keyMatches(msg, m.keys.Back):
 		m.state = StateConfig
 		return m, nil
@@ -1259,6 +1307,7 @@ func (m *Model) renderReviewFooter() string {
 		{"enter", "tags"},
 		{"e", "export"},
 		{"i", "import"},
+		{"T", "auto-triage"},
 		{"o", "open"},
 		{"f", "more"},
 		{"R", "refresh"},
@@ -1299,6 +1348,7 @@ func (m *Model) renderFullHelp() string {
 			{"enter", "edit tags"},
 			{"e", "export to clipboard"},
 			{"i", "import from clipboard"},
+			{"T", "auto-triage with LLM"},
 			{"o", "open URL in browser"},
 			{"u", "update Readwise"},
 			{"f", "fetch more (+7 days)"},
@@ -1349,4 +1399,106 @@ func openURL(url string) error {
 		args = []string{url}
 	}
 	return exec.Command(cmd, args...).Start()
+}
+
+// buildTriageItemsJSON builds the JSON payload for LLM triage.
+// Selection-aware: uses selected items if any, otherwise untriaged items.
+func (m *Model) buildTriageItemsJSON() (string, error) {
+	type exportItem struct {
+		ID          string `json:"id"`
+		Title       string `json:"title"`
+		URL         string `json:"url"`
+		Summary     string `json:"summary"`
+		Category    string `json:"category"`
+		Source      string `json:"source"`
+		WordCount   int    `json:"word_count"`
+		ReadingTime string `json:"reading_time"`
+	}
+
+	var items []exportItem
+	selectedIndices := m.listView.GetSelected()
+	useSelection := len(selectedIndices) > 0
+
+	for i, item := range m.items {
+		if useSelection {
+			isSelected := false
+			for _, idx := range selectedIndices {
+				if idx == i {
+					isSelected = true
+					break
+				}
+			}
+			if !isSelected {
+				continue
+			}
+		} else if item.Action != "" {
+			// Skip already-triaged items when no selection
+			continue
+		}
+
+		items = append(items, exportItem{
+			ID:          item.ID,
+			Title:       item.Title,
+			URL:         item.URL,
+			Summary:     item.Summary,
+			Category:    item.Category,
+			Source:      item.Source,
+			WordCount:   item.WordCount,
+			ReadingTime: item.ReadingTime,
+		})
+	}
+
+	if len(items) == 0 {
+		return "", fmt.Errorf("no items to triage (all items already triaged)")
+	}
+
+	data, err := json.MarshalIndent(items, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal items: %w", err)
+	}
+
+	return string(data), nil
+}
+
+// applyTriageResults applies LLM triage results to the current items.
+// Returns the number of items successfully applied.
+func (m *Model) applyTriageResults(results []triage.Result) int {
+	itemMap := make(map[string]*Item)
+	for i := range m.items {
+		itemMap[m.items[i].ID] = &m.items[i]
+	}
+
+	applied := 0
+	for _, result := range results {
+		item, ok := itemMap[result.ID]
+		if !ok {
+			continue
+		}
+
+		if result.TriageDecision.Action == "" {
+			continue
+		}
+
+		item.Action = result.TriageDecision.Action
+		item.Priority = result.TriageDecision.Priority
+
+		// Apply suggested tags, filtering out action-name duplicates
+		if len(result.MetadataEnhancement.SuggestedTags) > 0 {
+			var filtered []string
+			for _, tag := range result.MetadataEnhancement.SuggestedTags {
+				lower := strings.ToLower(strings.TrimSpace(tag))
+				if !validActions[lower] {
+					filtered = append(filtered, tag)
+				}
+			}
+			item.Tags = filtered
+		}
+
+		// Save to triage store with full report
+		m.saveLLMTriage(item.ID, item.Action, item.Priority, item.Tags, &result)
+		applied++
+	}
+
+	m.listView.SetItems(m.items)
+	return applied
 }

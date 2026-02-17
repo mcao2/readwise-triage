@@ -79,9 +79,12 @@ This repository contains a Go-based CLI tool for triaging Readwise Reader inbox 
 
 ### 6. LLM Triage Pipeline
 - The LLM classifies items into actions: `delete`, `archive`, `later`, `read_now`, and `needs_review`.
+- **Auto-Triage (`T` key)**: Sends items directly to a configured LLM API via `LLMClient` in `internal/triage/client.go`. Uses the lean `AutoTriagePromptTemplate` that only requests fields consumed downstream (`triage_decision` + `metadata_enhancement.suggested_tags`).
+- **Manual Export/Import (`e`/`i` keys)**: Uses the full `PromptTemplate` for copy-paste workflows with external LLMs.
+- **LLM Config**: Configured via `llm` section in `config.yaml` or env vars (`LLM_API_KEY`, `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`). Supports any OpenAI-compatible API. Legacy `perplexity_api_key` / `PERPLEXITY_API_KEY` still supported for backward compat.
 - **`needs_review`**: Escape hatch for items the LLM can't confidently classify (paywalled, ambiguous, insufficient context). Don't force every item into a definitive action.
 - **Suggested Tags**: Tags flow from LLM generation → triage import → Readwise update. They are appended alongside action-based tags during `UpdateDocument`. During import, tags matching action names (`read_now`, `later`, `archive`, `delete`, `needs_review`) are automatically filtered out to avoid redundancy.
-- **Token Efficiency**: Only generate LLM fields that are actually consumed downstream. Unused fields (e.g., `reading_guide`, `credibility_check`) waste tokens.
+- **Token Efficiency**: The auto-triage prompt (`AutoTriagePromptTemplate`) only generates fields that are actually consumed downstream. The full export prompt (`PromptTemplate`) retains additional fields for human review in copy-paste workflows.
 
 ### 7. Persistence
 - Triage results are stored in `~/.config/readwise-triage/triage.db` (SQLite via `modernc.org/sqlite`, pure Go, no CGO).

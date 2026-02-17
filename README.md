@@ -4,7 +4,8 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 
 ## Features
 
-- **LLM-Assisted Workflow**:
+- **Automated LLM Triage**: Press `T` to auto-triage items via any OpenAI-compatible API (OpenAI, Perplexity, Ollama, OpenRouter, etc.).
+- **Manual LLM Workflow**:
   - Export untriaged items as JSON with a specialized prompt (`e`).
   - Paste to any LLM of your choice for categorization.
   - Import results back into the TUI (`i`).
@@ -37,6 +38,7 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 | `Enter` | Review | **Edit Tags** (comma-separated, applies to selection in batch mode) |
 | `e` | Review | **Export** items to clipboard (Selected items if active, else untriaged) |
 | `i` | Review | **Import** triage results from clipboard |
+| `T` | Review | **Auto-Triage** with LLM (Selected items if active, else untriaged) |
 | `o` | Review | **Open** URL(s) in default browser (Selected items if active, else current) |
 | `f` | Review | **Fetch More** (adds 7 days to lookback window) |
 | `R` | Review | **Refresh** from Readwise (re-fetch with current lookback) |
@@ -82,6 +84,14 @@ The application automatically creates a config directory at `~/.config/readwise-
 # Required: Your Readwise API token
 readwise_token: "your_token_here"
 
+# Optional: LLM configuration for auto-triage (T key in review)
+# Supports any OpenAI-compatible API: openai, perplexity, ollama, openrouter, etc.
+llm:
+  provider: "openai"       # "openai", "perplexity", "ollama", or custom
+  api_key: ""              # required for cloud providers; not needed for ollama
+  # base_url: ""           # override endpoint (defaults per provider)
+  # model: ""              # override model (defaults per provider)
+
 # Optional: Default number of days to fetch for inbox (default: 7)
 inbox_days_ago: 7
 
@@ -95,6 +105,8 @@ theme: "default"
 location: "new"
 ```
 
+Environment variables `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_BASE_URL`, and `LLM_MODEL` can also be used and take precedence over config file values. Legacy `PERPLEXITY_API_KEY` is still supported for backward compatibility.
+
 ### Persistence
 
 Triage decisions are saved to `~/.config/readwise-triage/triage.db` (SQLite). Preferences (location, lookback days, theme) are saved to `config.yaml`. This allows you to:
@@ -103,13 +115,21 @@ Triage decisions are saved to `~/.config/readwise-triage/triage.db` (SQLite). Pr
 
 ## Workflow
 
+### Automated (recommended)
 1. **Configure**: Choose location (Inbox or Feed), adjust lookback days, pick a theme.
 2. **Fetch**: Load items from Readwise.
-2. **Export (`e`)**: Copy untriaged items and the triage prompt to your clipboard.
-3. **LLM**: Paste into any LLM (ChatGPT, Claude, Gemini, etc.), then copy the resulting JSON array.
-4. **Import (`i`)**: Paste the results back into the tool.
-5. **Review**: Manually adjust any items or use batch selection (`x`).
-6. **Update (`u`)**: Apply all triaged changes to your Readwise Reader account.
+3. **Auto-Triage (`T`)**: Send untriaged items to your configured LLM for classification.
+4. **Review**: Manually adjust any items or use batch selection (`x`).
+5. **Update (`u`)**: Apply all triaged changes to your Readwise Reader account.
+
+### Manual (copy-paste)
+1. **Configure**: Choose location (Inbox or Feed), adjust lookback days, pick a theme.
+2. **Fetch**: Load items from Readwise.
+3. **Export (`e`)**: Copy untriaged items and the triage prompt to your clipboard.
+4. **LLM**: Paste into any LLM (ChatGPT, Claude, Gemini, etc.), then copy the resulting JSON array.
+5. **Import (`i`)**: Paste the results back into the tool.
+6. **Review**: Manually adjust any items or use batch selection (`x`).
+7. **Update (`u`)**: Apply all triaged changes to your Readwise Reader account.
 
 
 ## Project Structure

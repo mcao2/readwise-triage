@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mcao2/readwise-triage/internal/config"
 	"github.com/mcao2/readwise-triage/internal/readwise"
+	"github.com/mcao2/readwise-triage/internal/triage"
 )
 
 func TestMain(m *testing.M) {
@@ -1010,9 +1011,9 @@ func TestKeyMapKeys(t *testing.T) {
 	if len(keys) == 0 {
 		t.Error("expected non-empty key bindings")
 	}
-	// Should have 16 bindings
-	if len(keys) != 16 {
-		t.Errorf("expected 16 key bindings, got %d", len(keys))
+	// Should have 17 bindings
+	if len(keys) != 17 {
+		t.Errorf("expected 17 key bindings, got %d", len(keys))
 	}
 }
 
@@ -1270,8 +1271,13 @@ func TestStartTriaging(t *testing.T) {
 	}
 
 	msg := cmd()
-	if _, ok := msg.(ErrorMsg); !ok {
-		t.Fatalf("expected ErrorMsg, got %T", msg)
+	// Without LLM config, should get a TriageFinishedMsg with an error
+	tfMsg, ok := msg.(TriageFinishedMsg)
+	if !ok {
+		t.Fatalf("expected TriageFinishedMsg, got %T", msg)
+	}
+	if tfMsg.Err == nil {
+		t.Error("expected error in TriageFinishedMsg when LLM is not configured")
 	}
 }
 
@@ -2438,5 +2444,195 @@ func TestLocationPersistence(t *testing.T) {
 	m3 := NewModel()
 	if m3.fetchLocation != "new" {
 		t.Errorf("expected new model to restore fetchLocation 'new', got %q", m3.fetchLocation)
+	}
+}
+
+func TestTriageFinishedMsg_Success(t *testing.T) {
+	m := NewModel()
+	m.state = StateTriaging
+	m.items = []Item{
+		{ID: "1", Title: "Article 1", URL: "https://example.com/1"},
+		{ID: "2", Title: "Article 2", URL: "https://example.com/2"},
+	}
+	m.listView.SetItems(m.items)
+
+	results := []triage.Result{
+		{
+			ID:    "1",
+			Title: "Article 1",
+			URL:   "https://example.com/1",
+			TriageDecision: triage.TriageDecision{
+				Action:   "read_now",
+				Priority: "high",
+				Reason:   "Very useful",
+			},
+			MetadataEnhancement: triage.MetadataEnhancement{
+				SuggestedTags: []string{"productivity", "tools"},
+			},
+		},
+		{
+			ID:    "2",
+			Title: "Article 2",
+			URL:   "https://example.com/2",
+			TriageDecision: triage.TriageDecision{
+				Action:   "archive",
+				Priority: "low",
+				Reason:   "Not relevant",
+			},
+		},
+	}
+
+	m.Update(TriageFinishedMsg{Results: results})
+
+	if m.state != StateMessage {
+		t.Errorf("expected StateMessage, got %v", m.state)
+	}
+	if m.messageType != "success" {
+		t.Errorf("expected success message type, got %q", m.messageType)
+	}
+	if m.items[0].Action != "read_now" {
+		t.Errorf("expected item 1 action 'read_now', got %q", m.items[0].Action)
+	}
+	if m.items[0].Priority != "high" {
+		t.Errorf("expected item 1 priority 'high', got %q", m.items[0].Priority)
+	}
+	if len(m.items[0].Tags) != 2 {
+		t.Errorf("expected 2 tags on item 1, got %d", len(m.items[0].Tags))
+	}
+	if m.items[1].Action != "archive" {
+		t.Errorf("expected item 2 action 'archive', got %q", m.items[1].Action)
+	}
+}
+
+func TestTriageFinishedMsg_Error(t *testing.T) {
+	m := NewModel()
+	m.state = StateTriaging
+
+	m.Update(TriageFinishedMsg{Err: fmt.Errorf("API rate limited")})
+
+	if m.state != StateMessage {
+		t.Errorf("expected StateMessage, got %v", m.state)
+	}
+	if m.messageType != "error" {
+		t.Errorf("expected error message type, got %q", m.messageType)
+	}
+	if !strings.Contains(m.statusMessage, "API rate limited") {
+		t.Errorf("expected error in status message, got %q", m.statusMessage)
+	}
+}
+
+func TestApplyTriageResults_FiltersActionTags(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Article 1"},
+	}
+	m.listView.SetItems(m.items)
+
+	results := []triage.Result{
+		{
+			ID:    "1",
+			Title: "Article 1",
+			TriageDecision: triage.TriageDecision{
+				Action:   "later",
+				Priority: "medium",
+				Reason:   "Read later",
+			},
+			MetadataEnhancement: triage.MetadataEnhancement{
+				SuggestedTags: []string{"later", "productivity", "read_now", "tools"},
+			},
+		},
+	}
+
+	applied := m.applyTriageResults(results)
+	if applied != 1 {
+		t.Errorf("expected 1 applied, got %d", applied)
+	}
+	// "later" and "read_now" should be filtered out as action names
+	if len(m.items[0].Tags) != 2 {
+		t.Errorf("expected 2 tags after filtering, got %d: %v", len(m.items[0].Tags), m.items[0].Tags)
+	}
+}
+
+func TestApplyTriageResults_UnknownIDSkipped(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Article 1"},
+	}
+	m.listView.SetItems(m.items)
+
+	results := []triage.Result{
+		{
+			ID:    "unknown",
+			Title: "Unknown Article",
+			TriageDecision: triage.TriageDecision{
+				Action:   "archive",
+				Priority: "low",
+				Reason:   "test",
+			},
+		},
+	}
+
+	applied := m.applyTriageResults(results)
+	if applied != 0 {
+		t.Errorf("expected 0 applied for unknown ID, got %d", applied)
+	}
+	if m.items[0].Action != "" {
+		t.Errorf("expected item unchanged, got action %q", m.items[0].Action)
+	}
+}
+
+func TestBuildTriageItemsJSON(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Untriaged", URL: "https://example.com/1"},
+		{ID: "2", Title: "Already triaged", URL: "https://example.com/2", Action: "read_now"},
+		{ID: "3", Title: "Also untriaged", URL: "https://example.com/3"},
+	}
+	m.listView.SetItems(m.items)
+
+	jsonData, err := m.buildTriageItemsJSON()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should only include untriaged items (1 and 3)
+	if !strings.Contains(jsonData, "Untriaged") {
+		t.Error("expected untriaged item in JSON")
+	}
+	if strings.Contains(jsonData, "Already triaged") {
+		t.Error("expected triaged item to be excluded from JSON")
+	}
+	if !strings.Contains(jsonData, "Also untriaged") {
+		t.Error("expected second untriaged item in JSON")
+	}
+}
+
+func TestBuildTriageItemsJSON_AllTriaged(t *testing.T) {
+	m := NewModel()
+	m.items = []Item{
+		{ID: "1", Title: "Done", Action: "read_now"},
+	}
+	m.listView.SetItems(m.items)
+
+	_, err := m.buildTriageItemsJSON()
+	if err == nil {
+		t.Error("expected error when all items are triaged")
+	}
+}
+
+func TestAutoTriageKeyBinding(t *testing.T) {
+	m := NewModel()
+	m.state = StateReviewing
+	m.items = []Item{
+		{ID: "1", Title: "Test"},
+	}
+	m.listView.SetItems(m.items)
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'T'}})
+	if cmd == nil {
+		t.Error("expected command from T key")
+	}
+	if m.state != StateTriaging {
+		t.Errorf("expected StateTriaging after T key, got %v", m.state)
 	}
 }
