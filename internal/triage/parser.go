@@ -12,10 +12,15 @@ func ParseTriageResponse(content string) ([]Result, error) {
 	// Try to find JSON array in the response
 	jsonStr := extractJSON(content)
 	if jsonStr == "" {
-		return nil, fmt.Errorf("no JSON array found in response")
+		preview := content
+		if len(preview) > 500 {
+			preview = preview[:500] + "..."
+		}
+		return nil, fmt.Errorf("no JSON array found in response: %s", preview)
 	}
 
 	var results []Result
+	jsonStr = fixTrailingCommas(jsonStr)
 	if err := json.Unmarshal([]byte(jsonStr), &results); err != nil {
 		return nil, fmt.Errorf("failed to parse triage results: %w", err)
 	}
@@ -36,7 +41,7 @@ func ParseTriageResponse(content string) ([]Result, error) {
 	return results, nil
 }
 
-// extractJSON finds the first JSON array in the content
+// extractJSON finds the first valid JSON array in the content
 func extractJSON(content string) string {
 	// Look for JSON array between triple backticks
 	codeBlockRegex := regexp.MustCompile("```(?:json)?\\s*([\\s\\S]*?)```")
@@ -48,36 +53,57 @@ func extractJSON(content string) string {
 		}
 	}
 
-	// Look for JSON array directly in content
-	startIdx := strings.Index(content, "[")
-	if startIdx == -1 {
-		return ""
-	}
+	// Try each '[' position until we find one that yields valid JSON
+	searchFrom := 0
+	for searchFrom < len(content) {
+		startIdx := strings.Index(content[searchFrom:], "[")
+		if startIdx == -1 {
+			return ""
+		}
+		startIdx += searchFrom
 
-	// Find matching closing bracket
-	depth := 0
-	endIdx := -1
-	for i := startIdx; i < len(content); i++ {
-		switch content[i] {
-		case '[':
-			depth++
-		case ']':
-			depth--
-			if depth == 0 {
-				endIdx = i
+		// Find matching closing bracket
+		depth := 0
+		endIdx := -1
+		for i := startIdx; i < len(content); i++ {
+			switch content[i] {
+			case '[':
+				depth++
+			case ']':
+				depth--
+				if depth == 0 {
+					endIdx = i
+					break
+				}
+			}
+			if endIdx != -1 {
 				break
 			}
 		}
-		if endIdx != -1 {
-			break
+
+		if endIdx == -1 {
+			return ""
 		}
+
+		candidate := strings.TrimSpace(content[startIdx : endIdx+1])
+		// Quick validation: try to unmarshal as JSON array (fix trailing commas first)
+		fixed := fixTrailingCommas(candidate)
+		var arr []json.RawMessage
+		if json.Unmarshal([]byte(fixed), &arr) == nil && len(arr) > 0 {
+			return candidate
+		}
+
+		// Not valid JSON, try next '[' after this position
+		searchFrom = startIdx + 1
 	}
 
-	if endIdx == -1 {
-		return ""
-	}
+	return ""
+}
 
-	return strings.TrimSpace(content[startIdx : endIdx+1])
+// fixTrailingCommas removes trailing commas before } or ] that LLMs sometimes produce.
+func fixTrailingCommas(s string) string {
+	re := regexp.MustCompile(`,\s*([}\]])`)
+	return re.ReplaceAllString(s, "$1")
 }
 
 // IsJSONArray checks if the string starts with [ and ends with ]
