@@ -3,6 +3,7 @@ package triage
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,6 +27,12 @@ func TestNewLLMClient(t *testing.T) {
 			name:     "perplexity with key",
 			provider: "perplexity",
 			apiKey:   "pplx-test",
+			wantErr:  false,
+		},
+		{
+			name:     "anthropic with key",
+			provider: "anthropic",
+			apiKey:   "sk-ant-test",
 			wantErr:  false,
 		},
 		{
@@ -170,6 +177,52 @@ func TestLLMClientTriageItemsAPIError(t *testing.T) {
 	}
 }
 
+func TestLLMClientTriageItems4xxNoRetry(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":{"message":"Invalid URL (POST /v1)","type":"invalid_request_error"}}`))
+	}))
+	defer server.Close()
+
+	client, _ := NewLLMClient("openai", "sk-test", WithLLMBaseURL(server.URL))
+	_, err := client.TriageItems(`[{"id":"1","title":"Test"}]`)
+	if err == nil {
+		t.Error("expected error on 404 response")
+	}
+	// 1 call: no retry for 4xx
+	if callCount != 1 {
+		t.Errorf("expected 1 call (no retry for 4xx), got %d", callCount)
+	}
+	if !contains(err.Error(), "Invalid URL") {
+		t.Errorf("expected parsed error message, got %q", err.Error())
+	}
+}
+
+func TestLLMClientTriageItemsNonJSONResponse(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte("<html><body>Not Found</body></html>"))
+	}))
+	defer server.Close()
+
+	client, _ := NewLLMClient("openai", "sk-test", WithLLMBaseURL(server.URL))
+	_, err := client.TriageItems(`[{"id":"1","title":"Test"}]`)
+	if err == nil {
+		t.Error("expected error on HTML response")
+	}
+	// 1 call: no retry for non-JSON
+	if callCount != 1 {
+		t.Errorf("expected 1 call (no retry for non-JSON), got %d", callCount)
+	}
+	if !contains(err.Error(), "not JSON") {
+		t.Errorf("expected 'not JSON' in error, got %q", err.Error())
+	}
+}
+
 func TestLLMClientTriageItemsRetry(t *testing.T) {
 	callCount := 0
 	triageResult := []Result{
@@ -188,6 +241,7 @@ func TestLLMClientTriageItemsRetry(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
+		// Call 1 = first real attempt (fail), call 2 = retry (succeed)
 		if callCount == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("error"))
@@ -212,6 +266,7 @@ func TestLLMClientTriageItemsRetry(t *testing.T) {
 	if len(results) != 1 {
 		t.Errorf("expected 1 result, got %d", len(results))
 	}
+	// 2 calls: 1 failed attempt + 1 successful retry
 	if callCount != 2 {
 		t.Errorf("expected 2 calls (1 retry), got %d", callCount)
 	}
@@ -282,5 +337,104 @@ func TestAutoTriagePromptTemplate(t *testing.T) {
 	}
 	if contains(formatted, "content_analysis") {
 		t.Error("auto prompt should not contain content_analysis")
+	}
+}
+
+func TestStripProxyNotifications(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "notification before JSON",
+			input: "\n\n---\n>\n### 📣 网站通知\n>\n> Some promo text\n>\n> \n<!-- notif:01138428 -->\n---\n\n[{\"id\":\"1\"}]",
+			want:  "[{\"id\":\"1\"}]",
+		},
+		{
+			name:  "no notification",
+			input: "[{\"id\":\"1\"}]",
+			want:  "[{\"id\":\"1\"}]",
+		},
+		{
+			name:  "notification only",
+			input: "\n---\n> promo\n<!-- notif:abc123 -->\n---\n",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripProxyNotifications(tt.input)
+			if got != tt.want {
+				t.Errorf("stripProxyNotifications() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLLMClientTriageItemsAnthropic(t *testing.T) {
+	triageResult := []Result{
+		{
+			ID:    "item1",
+			Title: "Test Article",
+			URL:   "https://example.com",
+			TriageDecision: TriageDecision{
+				Action:   "read_now",
+				Priority: "high",
+				Reason:   "Important",
+			},
+		},
+	}
+	resultJSON, _ := json.Marshal(triageResult)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify Anthropic-style auth headers
+		if r.Header.Get("x-api-key") != "sk-ant-test" {
+			t.Errorf("expected x-api-key header, got %q", r.Header.Get("x-api-key"))
+		}
+		if r.Header.Get("anthropic-version") != "2023-06-01" {
+			t.Errorf("expected anthropic-version header, got %q", r.Header.Get("anthropic-version"))
+		}
+		if r.Header.Get("Authorization") != "" {
+			t.Errorf("expected no Authorization header for anthropic, got %q", r.Header.Get("Authorization"))
+		}
+
+		// Verify request body uses Anthropic format
+		body, _ := io.ReadAll(r.Body)
+		var reqBody AnthropicRequest
+		if err := json.Unmarshal(body, &reqBody); err != nil {
+			t.Fatalf("failed to parse request body: %v", err)
+		}
+		if reqBody.System == "" {
+			t.Error("expected system field in Anthropic request")
+		}
+		if reqBody.MaxTokens == 0 {
+			t.Error("expected max_tokens in Anthropic request")
+		}
+
+		// Return Anthropic-format response
+		resp := AnthropicResponse{
+			Content: []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			}{
+				{Type: "text", Text: string(resultJSON)},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	client, _ := NewLLMClient("anthropic", "sk-ant-test", WithLLMBaseURL(server.URL))
+	results, err := client.TriageItems(`[{"id":"item1","title":"Test"}]`)
+	if err != nil {
+		t.Fatalf("TriageItems failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
+	}
+	if results[0].ID != "item1" {
+		t.Errorf("expected id 'item1', got %q", results[0].ID)
 	}
 }
