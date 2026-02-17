@@ -105,7 +105,7 @@ theme: "default"
 location: "new"
 ```
 
-Environment variables `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_BASE_URL`, and `LLM_MODEL` can also be used and take precedence over config file values. Legacy `PERPLEXITY_API_KEY` is still supported for backward compatibility.
+Environment variables `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_BASE_URL`, and `LLM_MODEL` can also be used and take precedence over config file values.
 
 ### Persistence
 

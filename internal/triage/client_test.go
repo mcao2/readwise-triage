@@ -67,7 +67,6 @@ func TestNewLLMClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear env vars
-			t.Setenv("PERPLEXITY_API_KEY", "")
 
 			client, err := NewLLMClient(tt.provider, tt.apiKey, tt.opts...)
 			if tt.wantErr {

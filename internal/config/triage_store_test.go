@@ -269,7 +269,6 @@ func TestLoadConfig(t *testing.T) {
 
 	t.Setenv("READWISE_TRIAGE_CONFIG", configPath)
 	t.Setenv("READWISE_TOKEN", "")
-	t.Setenv("PERPLEXITY_API_KEY", "")
 	t.Setenv("INBOX_DAYS_AGO", "")
 	t.Setenv("DEFAULT_DAYS_AGO", "")
 
@@ -320,7 +319,6 @@ func TestLoadConfigNoFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "nonexistent.yaml"))
 	t.Setenv("READWISE_TOKEN", "")
-	t.Setenv("PERPLEXITY_API_KEY", "")
 	t.Setenv("INBOX_DAYS_AGO", "")
 	t.Setenv("DEFAULT_DAYS_AGO", "")
 
@@ -337,7 +335,6 @@ func TestLoadConfigInvalidDaysAgo(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(tmpDir, "nonexistent.yaml"))
 	t.Setenv("READWISE_TOKEN", "")
-	t.Setenv("PERPLEXITY_API_KEY", "")
 	t.Setenv("INBOX_DAYS_AGO", "")
 	t.Setenv("DEFAULT_DAYS_AGO", "not-a-number")
 
@@ -497,7 +494,6 @@ func TestLoadConfigInvalidYAML(t *testing.T) {
 
 	t.Setenv("READWISE_TRIAGE_CONFIG", configPath)
 	t.Setenv("READWISE_TOKEN", "")
-	t.Setenv("PERPLEXITY_API_KEY", "")
 	t.Setenv("INBOX_DAYS_AGO", "")
 	t.Setenv("DEFAULT_DAYS_AGO", "")
 

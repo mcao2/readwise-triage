@@ -28,8 +28,8 @@ type Config struct {
 	Location      string    `yaml:"location"`
 }
 
-// GetLLMConfig returns the effective LLM configuration, applying backward
-// compatibility for the legacy PERPLEXITY_API_KEY environment variable.
+// GetLLMConfig returns the effective LLM configuration.
+// Environment variables take precedence over config file values.
 func (c *Config) GetLLMConfig() LLMConfig {
 	llm := c.LLM
 
@@ -45,16 +45,6 @@ func (c *Config) GetLLMConfig() LLMConfig {
 	}
 	if model := os.Getenv("LLM_MODEL"); model != "" {
 		llm.Model = model
-	}
-
-	// Backward compat: legacy PERPLEXITY_API_KEY env var
-	if llm.APIKey == "" {
-		if key := os.Getenv("PERPLEXITY_API_KEY"); key != "" {
-			llm.APIKey = key
-			if llm.Provider == "" {
-				llm.Provider = "perplexity"
-			}
-		}
 	}
 
 	return llm
@@ -188,9 +178,6 @@ llm:
   api_key: ""              # required for cloud providers; not needed for ollama
   # base_url: ""           # override endpoint (defaults per provider)
   # model: ""              # override model (defaults per provider)
-
-# Deprecated: use llm.api_key + llm.provider instead
-# perplexity_api_key: ""
 
 # Optional: Default number of days to fetch for inbox (default: 7)
 inbox_days_ago: 7
