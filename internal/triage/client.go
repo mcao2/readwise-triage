@@ -25,6 +25,29 @@ var providerDefaults = map[string]struct {
 	"ollama":     {BaseURL: "http://localhost:11434/v1/chat/completions", Model: "llama3"},
 }
 
+// ChatMessage represents a message in the chat API
+type ChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// ChatRequest represents the API request body
+type ChatRequest struct {
+	Model    string        `json:"model"`
+	Messages []ChatMessage `json:"messages"`
+}
+
+// ChatResponse represents the API response
+type ChatResponse struct {
+	Choices []struct {
+		Message ChatMessage `json:"message"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+	} `json:"error"`
+}
+
 // LLMClient handles communication with any OpenAI-compatible chat completions API
 type LLMClient struct {
 	apiKey     string
