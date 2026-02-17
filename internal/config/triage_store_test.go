@@ -259,11 +259,10 @@ func TestLoadConfig(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	cfgData := Config{
-		ReadwiseToken:    "test-token",
-		PerplexityAPIKey: "pplx-key",
-		InboxDaysAgo:     14,
-		Theme:            "dracula",
-		UseLLMTriage:     true,
+		ReadwiseToken: "test-token",
+		InboxDaysAgo:  14,
+		Theme:         "dracula",
+		UseLLMTriage:  true,
 	}
 	data, _ := yaml.Marshal(cfgData)
 	os.WriteFile(configPath, data, 0600)
@@ -280,9 +279,6 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if cfg.ReadwiseToken != "test-token" {
 		t.Errorf("expected token 'test-token', got %q", cfg.ReadwiseToken)
-	}
-	if cfg.PerplexityAPIKey != "pplx-key" {
-		t.Errorf("expected api key 'pplx-key', got %q", cfg.PerplexityAPIKey)
 	}
 	if cfg.InboxDaysAgo != 14 {
 		t.Errorf("expected days 14, got %d", cfg.InboxDaysAgo)
@@ -305,7 +301,6 @@ func TestLoadConfigEnvOverride(t *testing.T) {
 
 	t.Setenv("READWISE_TRIAGE_CONFIG", configPath)
 	t.Setenv("READWISE_TOKEN", "env-token")
-	t.Setenv("PERPLEXITY_API_KEY", "env-pplx")
 	t.Setenv("INBOX_DAYS_AGO", "30")
 	t.Setenv("DEFAULT_DAYS_AGO", "")
 
@@ -315,9 +310,6 @@ func TestLoadConfigEnvOverride(t *testing.T) {
 	}
 	if cfg.ReadwiseToken != "env-token" {
 		t.Errorf("expected env token override, got %q", cfg.ReadwiseToken)
-	}
-	if cfg.PerplexityAPIKey != "env-pplx" {
-		t.Errorf("expected env api key override, got %q", cfg.PerplexityAPIKey)
 	}
 	if cfg.InboxDaysAgo != 30 {
 		t.Errorf("expected env days override 30, got %d", cfg.InboxDaysAgo)

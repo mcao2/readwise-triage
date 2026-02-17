@@ -19,18 +19,17 @@ type LLMConfig struct {
 
 // Config holds application configuration
 type Config struct {
-	ReadwiseToken    string    `yaml:"readwise_token"`
-	PerplexityAPIKey string    `yaml:"perplexity_api_key"` // deprecated: use llm.api_key
-	LLM              LLMConfig `yaml:"llm"`
-	InboxDaysAgo     int       `yaml:"inbox_days_ago"`
-	FeedDaysAgo      int       `yaml:"feed_days_ago"`
-	Theme            string    `yaml:"theme"`
-	UseLLMTriage     bool      `yaml:"use_llm_triage"`
-	Location         string    `yaml:"location"`
+	ReadwiseToken string    `yaml:"readwise_token"`
+	LLM           LLMConfig `yaml:"llm"`
+	InboxDaysAgo  int       `yaml:"inbox_days_ago"`
+	FeedDaysAgo   int       `yaml:"feed_days_ago"`
+	Theme         string    `yaml:"theme"`
+	UseLLMTriage  bool      `yaml:"use_llm_triage"`
+	Location      string    `yaml:"location"`
 }
 
 // GetLLMConfig returns the effective LLM configuration, applying backward
-// compatibility for the legacy perplexity_api_key field.
+// compatibility for the legacy PERPLEXITY_API_KEY environment variable.
 func (c *Config) GetLLMConfig() LLMConfig {
 	llm := c.LLM
 
@@ -48,15 +47,7 @@ func (c *Config) GetLLMConfig() LLMConfig {
 		llm.Model = model
 	}
 
-	// Backward compat: if no LLM config but perplexity_api_key is set
-	if llm.APIKey == "" && c.PerplexityAPIKey != "" {
-		llm.APIKey = c.PerplexityAPIKey
-		if llm.Provider == "" {
-			llm.Provider = "perplexity"
-		}
-	}
-
-	// Also check legacy env var
+	// Backward compat: legacy PERPLEXITY_API_KEY env var
 	if llm.APIKey == "" {
 		if key := os.Getenv("PERPLEXITY_API_KEY"); key != "" {
 			llm.APIKey = key
@@ -119,9 +110,6 @@ func (c *Config) loadFromFile() error {
 func (c *Config) loadFromEnv() {
 	if token := os.Getenv("READWISE_TOKEN"); token != "" {
 		c.ReadwiseToken = token
-	}
-	if apiKey := os.Getenv("PERPLEXITY_API_KEY"); apiKey != "" {
-		c.PerplexityAPIKey = apiKey
 	}
 	// Prefer INBOX_DAYS_AGO, fall back to legacy DEFAULT_DAYS_AGO
 	if daysStr := os.Getenv("INBOX_DAYS_AGO"); daysStr != "" {
@@ -240,7 +228,7 @@ func (c *Config) Save() error {
 	existing.Theme = c.Theme
 	existing.UseLLMTriage = c.UseLLMTriage
 	existing.Location = c.Location
-	// Note: We preserve existing.ReadwiseToken and existing.PerplexityAPIKey
+	// Note: We preserve existing.ReadwiseToken
 
 	data, err := yaml.Marshal(existing)
 	if err != nil {
