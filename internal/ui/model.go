@@ -927,9 +927,7 @@ func (m *Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleDoneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	m.state = StateReviewing
-	m.statusMessage = ""
-	return m, nil
+	return m, m.startFetching()
 }
 
 func (m *Model) handleMessageKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

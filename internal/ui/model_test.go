@@ -266,8 +266,8 @@ func TestHandleAdditionalKeys(t *testing.T) {
 
 	m.state = StateDone
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	if m.state != StateReviewing {
-		t.Errorf("expected Reviewing state after key in Done, got %v", m.state)
+	if m.state != StateFetching {
+		t.Errorf("expected Fetching state after key in Done (re-fetch), got %v", m.state)
 	}
 
 	m.state = StateMessage
@@ -1573,6 +1573,43 @@ func TestDoneViewCheckmark(t *testing.T) {
 	}
 }
 
+func TestDoneKeyRefetchesItems(t *testing.T) {
+	m := NewModel()
+	m.cfg = &config.Config{ReadwiseToken: "test-token"}
+
+	// Load items, mark one as archived, simulate update
+	items := []Item{
+		{ID: "1", Title: "Keep me"},
+		{ID: "2", Title: "Archive me", Action: "archive"},
+	}
+	m.Update(ItemsLoadedMsg{Items: items})
+	m.Update(UpdateFinishedMsg{Success: 1, Failed: 0})
+	if m.state != StateDone {
+		t.Fatalf("expected StateDone, got %v", m.state)
+	}
+
+	// Press any key — should trigger re-fetch, not go straight to reviewing
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	if m.state != StateFetching {
+		t.Fatalf("expected StateFetching after key in Done, got %v", m.state)
+	}
+	if cmd == nil {
+		t.Fatal("expected a fetch command, got nil")
+	}
+
+	// Simulate fetch returning only the non-archived item
+	m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Keep me"}}})
+	if m.state != StateReviewing {
+		t.Fatalf("expected StateReviewing after fetch, got %v", m.state)
+	}
+	if len(m.items) != 1 {
+		t.Fatalf("expected 1 item after re-fetch, got %d", len(m.items))
+	}
+	if m.items[0].ID != "1" {
+		t.Fatalf("expected item ID '1', got %q", m.items[0].ID)
+	}
+}
+
 func TestMessageViewIcons(t *testing.T) {
 	m := NewModel()
 	m.state = StateMessage
@@ -1702,11 +1739,14 @@ func TestNavigationAfterMultipleUpdateCycles(t *testing.T) {
 			t.Fatalf("cycle %d: expected StateDone, got %v", cycle, m.state)
 		}
 
-		// Press any key to go back to reviewing
+		// Press any key to re-fetch items
 		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-		if m.state != StateReviewing {
-			t.Fatalf("cycle %d: expected StateReviewing after done, got %v", cycle, m.state)
+		if m.state != StateFetching {
+			t.Fatalf("cycle %d: expected StateFetching after done, got %v", cycle, m.state)
 		}
+
+		// Simulate fetch completing
+		m.Update(ItemsLoadedMsg{Items: items})
 
 		// Verify navigation works
 		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
