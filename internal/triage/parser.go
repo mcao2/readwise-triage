@@ -20,6 +20,7 @@ func ParseTriageResponse(content string) ([]Result, error) {
 	}
 
 	var results []Result
+	jsonStr = fixTrailingCommas(jsonStr)
 	if err := json.Unmarshal([]byte(jsonStr), &results); err != nil {
 		return nil, fmt.Errorf("failed to parse triage results: %w", err)
 	}
@@ -85,9 +86,10 @@ func extractJSON(content string) string {
 		}
 
 		candidate := strings.TrimSpace(content[startIdx : endIdx+1])
-		// Quick validation: try to unmarshal as JSON array
+		// Quick validation: try to unmarshal as JSON array (fix trailing commas first)
+		fixed := fixTrailingCommas(candidate)
 		var arr []json.RawMessage
-		if json.Unmarshal([]byte(candidate), &arr) == nil && len(arr) > 0 {
+		if json.Unmarshal([]byte(fixed), &arr) == nil && len(arr) > 0 {
 			return candidate
 		}
 
@@ -96,6 +98,12 @@ func extractJSON(content string) string {
 	}
 
 	return ""
+}
+
+// fixTrailingCommas removes trailing commas before } or ] that LLMs sometimes produce.
+func fixTrailingCommas(s string) string {
+	re := regexp.MustCompile(`,\s*([}\]])`)
+	return re.ReplaceAllString(s, "$1")
 }
 
 // IsJSONArray checks if the string starts with [ and ends with ]

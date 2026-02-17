@@ -46,6 +46,21 @@ func TestParseTriageResponse(t *testing.T) {
 			wantCount: 0,
 			wantErr:   true,
 		},
+		{
+			name: "json with trailing commas",
+			content: `[{
+				"id": "item1",
+				"title": "Test",
+				"url": "https://example.com",
+				"triage_decision": {
+					"action": "archive",
+					"priority": "low",
+					"reason": "Not relevant",
+				},
+			}]`,
+			wantCount: 1,
+			wantErr:   false,
+		},
 	}
 
 	for _, tt := range tests {
