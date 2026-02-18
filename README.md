@@ -4,7 +4,7 @@ A CLI tool for triaging Readwise Reader inbox items with LLM-assisted or manual 
 
 ## Features
 
-- **Automated LLM Triage**: Press `T` to auto-triage items via any OpenAI-compatible API (OpenAI, Perplexity, Ollama, OpenRouter, etc.).
+- **Automated LLM Triage**: Press `T` to auto-triage items via any OpenAI-compatible or Anthropic API (OpenAI, Anthropic, Perplexity, Ollama, OpenRouter, etc.).
 - **Manual LLM Workflow**:
   - Export untriaged items as JSON with a specialized prompt (`e`).
   - Paste to any LLM of your choice for categorization.
@@ -87,10 +87,11 @@ readwise_token: "your_token_here"
 # Optional: LLM configuration for auto-triage (T key in review)
 # Supports any OpenAI-compatible API: openai, perplexity, ollama, openrouter, etc.
 llm:
-  provider: "openai"       # "openai", "perplexity", "ollama", or custom
+  provider: "openai"       # "openai", "anthropic", "perplexity", "ollama", or custom
   api_key: ""              # required for cloud providers; not needed for ollama
   # base_url: ""           # override endpoint (defaults per provider)
   # model: ""              # override model (defaults per provider)
+  # api_format: ""         # wire format: "openai" (default) or "anthropic"
 
 # Optional: Default number of days to fetch for inbox (default: 7)
 inbox_days_ago: 7
@@ -105,7 +106,7 @@ theme: "default"
 location: "new"
 ```
 
-Environment variables `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_BASE_URL`, and `LLM_MODEL` can also be used and take precedence over config file values.
+Environment variables `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, and `LLM_API_FORMAT` can also be used and take precedence over config file values.
 
 ### Persistence
 
