@@ -152,13 +152,16 @@ func NewLLMClient(provider, apiKey string, opts ...LLMOption) (*LLMClient, error
 		client.apiFormat = "openai"
 	}
 
-	// Auto-append standard path if base URL has no path component
-	if !strings.Contains(strings.TrimPrefix(strings.TrimPrefix(client.baseURL, "https://"), "http://"), "/") {
-		switch client.apiFormat {
-		case "anthropic":
-			client.baseURL = strings.TrimRight(client.baseURL, "/") + "/v1/messages"
-		default:
-			client.baseURL = strings.TrimRight(client.baseURL, "/") + "/v1/chat/completions"
+	// Auto-append standard API endpoint path if not already present
+	baseURL := strings.TrimRight(client.baseURL, "/")
+	switch client.apiFormat {
+	case "anthropic":
+		if !strings.HasSuffix(baseURL, "/v1/messages") {
+			client.baseURL = baseURL + "/v1/messages"
+		}
+	default:
+		if !strings.HasSuffix(baseURL, "/v1/chat/completions") {
+			client.baseURL = baseURL + "/v1/chat/completions"
 		}
 	}
 
