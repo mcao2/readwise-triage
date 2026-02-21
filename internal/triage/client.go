@@ -156,11 +156,11 @@ func NewLLMClient(provider, apiKey string, opts ...LLMOption) (*LLMClient, error
 	baseURL := strings.TrimRight(client.baseURL, "/")
 	switch client.apiFormat {
 	case "anthropic":
-		if !strings.HasSuffix(baseURL, "/v1/messages") {
+		if !strings.HasSuffix(baseURL, "/v1/messages") && !strings.Contains(baseURL, "/v1/messages/") {
 			client.baseURL = baseURL + "/v1/messages"
 		}
 	default:
-		if !strings.HasSuffix(baseURL, "/v1/chat/completions") {
+		if !strings.HasSuffix(baseURL, "/v1/chat/completions") && !strings.Contains(baseURL, "/v1/chat/completions/") {
 			client.baseURL = baseURL + "/v1/chat/completions"
 		}
 	}

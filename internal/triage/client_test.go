@@ -405,3 +405,81 @@ func TestLLMClientTriageItemsAnthropic(t *testing.T) {
 		t.Errorf("expected id 'item1', got %q", results[0].ID)
 	}
 }
+
+func TestLLMClientAutoAppendEndpoint(t *testing.T) {
+	tests := []struct {
+		name       string
+		apiFormat  string
+		baseURL    string
+		wantURL    string
+		withCustom bool
+	}{
+		{
+			name:      "openai base url gets chat completions appended",
+			apiFormat: "openai",
+			baseURL:   "https://api.openai.com",
+			wantURL:   "https://api.openai.com/v1/chat/completions",
+		},
+		{
+			name:      "openai base url already has chat completions preserved",
+			apiFormat: "openai",
+			baseURL:   "https://custom.openai.azure.com/openai/deployments/gpt4/chat/completions",
+			wantURL:   "https://custom.openai.azure.com/openai/deployments/gpt4/chat/completions/v1/chat/completions",
+		},
+		{
+			name:      "openai base url with trailing slash gets chat completions appended",
+			apiFormat: "openai",
+			baseURL:   "https://api.openai.com/",
+			wantURL:   "https://api.openai.com/v1/chat/completions",
+		},
+		{
+			name:      "openai base url already ends with chat completions preserved",
+			apiFormat: "openai",
+			baseURL:   "https://api.longcat.chat/openai/v1/chat/completions",
+			wantURL:   "https://api.longcat.chat/openai/v1/chat/completions",
+		},
+		{
+			name:      "anthropic base url gets messages appended",
+			apiFormat: "anthropic",
+			baseURL:   "https://api.anthropic.com",
+			wantURL:   "https://api.anthropic.com/v1/messages",
+		},
+		{
+			name:      "anthropic base url already has path preserved",
+			apiFormat: "anthropic",
+			baseURL:   "https://custom.anthropic.com/v1/messages",
+			wantURL:   "https://custom.anthropic.com/v1/messages",
+		},
+		{
+			name:      "anthropic base url with trailing slash gets messages appended",
+			apiFormat: "anthropic",
+			baseURL:   "https://api.anthropic.com/",
+			wantURL:   "https://api.anthropic.com/v1/messages",
+		},
+		{
+			name:      "anthropic base url already ends with messages preserved",
+			apiFormat: "anthropic",
+			baseURL:   "https://api.longcat.chat/anthropic/v1/messages",
+			wantURL:   "https://api.longcat.chat/anthropic/v1/messages",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := []LLMOption{
+				WithLLMBaseURL(tt.baseURL),
+				WithLLMModel("test-model"),
+			}
+			if tt.apiFormat != "" {
+				opts = append(opts, WithLLMAPIFormat(tt.apiFormat))
+			}
+			client, err := NewLLMClient("custom", "test-key", opts...)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if client.baseURL != tt.wantURL {
+				t.Errorf("expected baseURL %q, got %q", tt.wantURL, client.baseURL)
+			}
+		})
+	}
+}
