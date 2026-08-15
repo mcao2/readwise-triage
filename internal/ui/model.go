@@ -62,8 +62,7 @@ type Model struct {
 	styles Styles
 	keys   KeyMap
 
-	useLLMTriage bool
-	showHelp     bool
+	showHelp bool
 
 	items  []Item
 	cursor int

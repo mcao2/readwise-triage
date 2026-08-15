@@ -873,7 +873,7 @@ func TestConfigEnterKey(t *testing.T) {
 	}
 }
 
-func TestConfigViewNoLLMMode(t *testing.T) {
+func TestConfigViewRendering(t *testing.T) {
 	m := NewModel()
 	m.state = StateConfig
 	view := m.View()
