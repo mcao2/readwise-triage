@@ -27,10 +27,10 @@ type ListView struct {
 }
 
 func listColumns(width int) []table.Column {
-	// Each cell has Padding(0,1) adding 2 chars per column (7 columns = 14 extra).
+	// Each cell has Padding(0,1) adding 2 chars per column (6 columns = 12 extra).
 	// Subtract 2 more to avoid hitting exact terminal width (causes implicit wraps).
-	fixedWidth := 2 + 10 + 8 + 10 + 14 + 20 // non-title columns
-	padding := 7*2 + 2                      // 7 columns × 2 chars padding each + 2 safety margin
+	fixedWidth := 2 + 10 + 10 + 14 + 20 // non-title columns
+	padding := 6*2 + 2                  // 6 columns × 2 chars padding each + 2 safety margin
 	titleWidth := width - fixedWidth - padding
 	if titleWidth < 20 {
 		titleWidth = 20
@@ -38,7 +38,6 @@ func listColumns(width int) []table.Column {
 	return []table.Column{
 		{Title: " ", Width: 2},
 		{Title: "Action", Width: 10},
-		{Title: "Priority", Width: 8},
 		{Title: "Category", Width: 10},
 		{Title: "Info", Width: 14},
 		{Title: "Tags", Width: 20},
@@ -133,7 +132,7 @@ func (lv *ListView) updateRows() {
 		category := Truncate(item.Category, 10)
 		info := formatInfo(item.ReadingTime, item.WordCount)
 		tags := Truncate(strings.Join(item.Tags, ", "), 20)
-		title := Truncate(item.Title, lv.width-80)
+		title := Truncate(item.Title, lv.width-70)
 
 		rows[i] = table.Row{sel, actionText, category, info, tags, title}
 	}
@@ -378,8 +377,4 @@ func (lv ListView) Update(msg tea.Msg) (ListView, tea.Cmd) {
 	var cmd tea.Cmd
 	lv.table, cmd = lv.table.Update(msg)
 	return lv, cmd
-}
-
-func (lv ListView) helpView() string {
-	return "j/k: navigate • x: select • r/l/a/d/n: action • 1/2/3: priority • p: AI triage • enter: edit • q: quit"
 }

@@ -2,7 +2,7 @@ package triage
 
 // AutoTriagePromptTemplate is a lean prompt for automated LLM triage.
 // It only requests fields that are actually consumed downstream (action,
-// reason, suggested_tags), saving tokens compared to the full export prompt.
+// reason, suggested_tags),
 const AutoTriagePromptTemplate = `You are my personal reading assistant. I will give you a batch of Readwise Reader inbox item metadata (JSON format). Classify each item with a triage decision.
 
 ---

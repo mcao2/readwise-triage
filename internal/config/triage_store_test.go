@@ -176,7 +176,6 @@ func TestLoadConfig(t *testing.T) {
 	cfgData := Config{
 		ReadwiseToken: "test-token",
 		InboxDaysAgo:  14,
-		UseLLMTriage:  true,
 	}
 	data, _ := yaml.Marshal(cfgData)
 	os.WriteFile(configPath, data, 0600)
@@ -266,7 +265,6 @@ func TestConfigSave(t *testing.T) {
 
 	cfg := &Config{
 		InboxDaysAgo: 14,
-		UseLLMTriage: true,
 	}
 
 	if err := cfg.Save(); err != nil {
@@ -287,9 +285,6 @@ func TestConfigSave(t *testing.T) {
 	if loaded.InboxDaysAgo != 14 {
 		t.Errorf("expected days 14, got %d", loaded.InboxDaysAgo)
 	}
-	if !loaded.UseLLMTriage {
-		t.Error("expected UseLLMTriage true")
-	}
 }
 
 func TestConfigSavePreservesTokens(t *testing.T) {
@@ -308,7 +303,6 @@ func TestConfigSavePreservesTokens(t *testing.T) {
 	// Save with different theme (should preserve token)
 	cfg := &Config{
 		InboxDaysAgo: 14,
-		UseLLMTriage: false,
 	}
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("Save failed: %v", err)

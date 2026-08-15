@@ -134,17 +134,6 @@ func TestListView_Update(t *testing.T) {
 	// Just verify it doesn't panic
 }
 
-func TestListView_HelpView(t *testing.T) {
-	lv := NewListView(80, 24)
-	help := lv.helpView()
-	if help == "" {
-		t.Error("expected non-empty help view")
-	}
-	if !strings.Contains(help, "navigate") {
-		t.Error("expected help to contain 'navigate'")
-	}
-}
-
 func TestListView_View(t *testing.T) {
 	lv := NewListView(80, 24)
 	view := lv.View()

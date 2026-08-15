@@ -113,11 +113,6 @@ func NewModel() *Model {
 		triageStore = nil // will be nil-checked by callers
 	}
 
-	useLLM := cfg.UseLLMTriage
-	if !useLLM {
-		useLLM = true
-	}
-
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(DefaultTheme.Primary))
@@ -129,7 +124,6 @@ func NewModel() *Model {
 
 	m := &Model{
 		state:         StateConfig,
-		useLLMTriage:  useLLM,
 		styles:        NewStyles(DefaultTheme),
 		keys:          DefaultKeyMap(),
 		items:         []Item{},
@@ -844,10 +838,8 @@ func (m *Model) configView() string {
 	// Help
 	help := m.renderHelpLine([]helpEntry{
 		{"enter", "start"},
-		{"h/l", "location"},
 		{"j/k", "days ±7"},
 		{"0-9", "type days"},
-		{"t", "theme"},
 		{"q", "quit"},
 	})
 

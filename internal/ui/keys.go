@@ -14,8 +14,6 @@ type KeyMap struct {
 	Open       key.Binding
 	Update     key.Binding
 	FetchMore  key.Binding
-	Delete     key.Binding
-	ToggleMode key.Binding
 	Refresh    key.Binding
 	AutoTriage key.Binding
 }
@@ -63,14 +61,6 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("f"),
 			key.WithHelp("f", "fetch more"),
 		),
-		Delete: key.NewBinding(
-			key.WithKeys("d"),
-			key.WithHelp("d", "archive"),
-		),
-		ToggleMode: key.NewBinding(
-			key.WithKeys("m"),
-			key.WithHelp("m", "toggle mode"),
-		),
 		Refresh: key.NewBinding(
 			key.WithKeys("R"),
 			key.WithHelp("R", "refresh from readwise"),
@@ -87,6 +77,6 @@ func (k KeyMap) Keys() []key.Binding {
 	return []key.Binding{
 		k.Up, k.Down,
 		k.Enter, k.Back, k.Quit, k.Help, k.Select, k.Open, k.Update, k.FetchMore,
-		k.Delete, k.ToggleMode, k.Refresh, k.AutoTriage,
+		k.Refresh, k.AutoTriage,
 	}
 }

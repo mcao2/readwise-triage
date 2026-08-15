@@ -21,7 +21,6 @@ type Config struct {
 	ReadwiseToken string    `yaml:"readwise_token"`
 	LLM           LLMConfig `yaml:"llm"`
 	InboxDaysAgo  int       `yaml:"inbox_days_ago"`
-	UseLLMTriage  bool      `yaml:"use_llm_triage"`
 }
 
 // GetLLMConfig returns the effective LLM configuration.
@@ -174,7 +173,6 @@ llm:
 inbox_days_ago: 7
 
 # Optional: Use LLM auto-triage by default (default: true)
-use_llm_triage: true
 `
 
 	return os.WriteFile(configPath, []byte(example), 0600)
@@ -196,7 +194,6 @@ func (c *Config) Save() error {
 
 	// Update only the fields we manage (not tokens from env vars)
 	existing.InboxDaysAgo = c.InboxDaysAgo
-	existing.UseLLMTriage = c.UseLLMTriage
 	// Note: We preserve existing.ReadwiseToken
 
 	data, err := yaml.Marshal(existing)

@@ -468,16 +468,6 @@ func TestFetchMoreKey(t *testing.T) {
 	}
 }
 
-func TestToggleLLMMode_Disabled(t *testing.T) {
-	m := NewModel()
-	initial := m.useLLMTriage
-
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
-	if m.useLLMTriage != initial {
-		t.Error("expected useLLMTriage to remain unchanged when toggle is hidden")
-	}
-}
-
 func TestAllViewRendering(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -702,9 +692,9 @@ func TestKeyMapKeys(t *testing.T) {
 	if len(keys) == 0 {
 		t.Error("expected non-empty key bindings")
 	}
-	// Should have 14 bindings
-	if len(keys) != 14 {
-		t.Errorf("expected 14 key bindings, got %d", len(keys))
+	// Should have 12 bindings
+	if len(keys) != 12 {
+		t.Errorf("expected 12 key bindings, got %d", len(keys))
 	}
 }
 
@@ -750,26 +740,6 @@ func TestConfigViewWithError(t *testing.T) {
 	view := m.View()
 	if !strings.Contains(view, "some error") {
 		t.Error("expected config view to show error message")
-	}
-}
-
-func TestFetchingViewWithLLM(t *testing.T) {
-	m := NewModel()
-	m.state = StateFetching
-	m.useLLMTriage = true
-	view := m.View()
-	if strings.Contains(view, "skip") {
-		t.Error("expected fetching view to not mention skip (mode toggle hidden)")
-	}
-}
-
-func TestFetchingViewWithoutLLM(t *testing.T) {
-	m := NewModel()
-	m.state = StateFetching
-	m.useLLMTriage = false
-	view := m.View()
-	if strings.Contains(view, "skip") {
-		t.Error("expected non-LLM fetching view to not mention skip")
 	}
 }
 
@@ -989,19 +959,6 @@ func TestUpdatingViewProgress(t *testing.T) {
 	}
 	if !strings.Contains(view, "Updated 3/4") {
 		t.Error("expected updating view to show status message")
-	}
-}
-
-func TestConfigViewCard(t *testing.T) {
-	m := NewModel()
-	m.state = StateConfig
-	m.width = 80
-	view := m.View()
-	if !strings.Contains(view, "Readwise Triage") {
-		t.Error("expected config view to contain app title")
-	}
-	if !strings.Contains(view, "theme") {
-		t.Error("expected config view help to contain theme")
 	}
 }
 
