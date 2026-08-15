@@ -1696,20 +1696,34 @@ func TestBuildTriageItemsJSON(t *testing.T) {
 	}
 	m.listView.SetItems(m.items)
 
-	jsonData, err := m.buildTriageItemsJSON()
+	items, err := m.getTriageItems()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Should only include untriaged items (1 and 3)
-	if !strings.Contains(jsonData, "Untriaged") {
-		t.Error("expected untriaged item in JSON")
+	foundUntriaged := false
+	foundTriaged := false
+	foundAlso := false
+	for _, item := range items {
+		if item.Title == "Untriaged" {
+			foundUntriaged = true
+		}
+		if item.Title == "Already triaged" {
+			foundTriaged = true
+		}
+		if item.Title == "Also untriaged" {
+			foundAlso = true
+		}
 	}
-	if strings.Contains(jsonData, "Already triaged") {
-		t.Error("expected triaged item to be excluded from JSON")
+	if !foundUntriaged {
+		t.Error("expected untriaged item")
 	}
-	if !strings.Contains(jsonData, "Also untriaged") {
-		t.Error("expected second untriaged item in JSON")
+	if foundTriaged {
+		t.Error("expected triaged item to be excluded")
+	}
+	if !foundAlso {
+		t.Error("expected second untriaged item")
 	}
 }
 
@@ -1720,7 +1734,7 @@ func TestBuildTriageItemsJSON_AllTriaged(t *testing.T) {
 	}
 	m.listView.SetItems(m.items)
 
-	_, err := m.buildTriageItemsJSON()
+	_, err := m.getTriageItems()
 	if err == nil {
 		t.Error("expected error when all items are triaged")
 	}

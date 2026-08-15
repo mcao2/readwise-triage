@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -367,14 +368,39 @@ func (m *Model) startTriaging() tea.Cmd {
 			return TriageFinishedMsg{Err: fmt.Errorf("failed to create LLM client: %w", err)}
 		}
 
-		// Build the items JSON for LLM triage
-		itemsJSON, err := m.buildTriageItemsJSON()
+		// Get items to triage
+		items, err := m.getTriageItems()
 		if err != nil {
 			return TriageFinishedMsg{Err: err}
 		}
 
-		results, err := client.TriageItems(itemsJSON)
-		return TriageFinishedMsg{Results: results, Err: err}
+		// Batch: split items into chunks to avoid max_tokens truncation
+		var allResults []triage.Result
+		numBatches := (len(items) + triageBatchSize - 1) / triageBatchSize
+		for batchStart := 0; batchStart < len(items); batchStart += triageBatchSize {
+			batchEnd := batchStart + triageBatchSize
+			if batchEnd > len(items) {
+				batchEnd = len(items)
+			}
+
+			batchBytes, err := json.MarshalIndent(items[batchStart:batchEnd], "", "  ")
+			if err != nil {
+				return TriageFinishedMsg{Err: fmt.Errorf("failed to marshal batch: %w", err)}
+			}
+
+			results, err := client.TriageItems(string(batchBytes))
+			if err != nil {
+				return TriageFinishedMsg{Err: fmt.Errorf("batch %d/%d failed: %w", batchStart/triageBatchSize+1, numBatches, err)}
+			}
+			allResults = append(allResults, results...)
+
+			// Small delay between batches to avoid rate limits
+			if batchEnd < len(items) {
+				time.Sleep(1 * time.Second)
+			}
+		}
+
+		return TriageFinishedMsg{Results: allResults}
 	}
 }
 
@@ -771,19 +797,23 @@ func openURL(url string) error {
 	return exec.Command(cmd, args...).Start()
 }
 
-// buildTriageItemsJSON builds the JSON payload for LLM triage.
+const triageBatchSize = 20
+
+// triageItem is the JSON payload sent to the LLM for each item.
+type triageItem struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	Summary     string `json:"summary"`
+	Category    string `json:"category"`
+	Source      string `json:"source"`
+	WordCount   int    `json:"word_count"`
+	ReadingTime string `json:"reading_time"`
+}
+
+// getTriageItems returns the items to send to the LLM for triage.
 // Selection-aware: uses selected items if any, otherwise untriaged items.
-func (m *Model) buildTriageItemsJSON() (string, error) {
-	type triageItem struct {
-		ID          string `json:"id"`
-		Title       string `json:"title"`
-		URL         string `json:"url"`
-		Summary     string `json:"summary"`
-		Category    string `json:"category"`
-		Source      string `json:"source"`
-		WordCount   int    `json:"word_count"`
-		ReadingTime string `json:"reading_time"`
-	}
+func (m *Model) getTriageItems() ([]triageItem, error) {
 
 	var items []triageItem
 	selectedIndices := m.listView.GetSelected()
@@ -819,15 +849,10 @@ func (m *Model) buildTriageItemsJSON() (string, error) {
 	}
 
 	if len(items) == 0 {
-		return "", fmt.Errorf("no items to triage (all items already triaged)")
+		return nil, fmt.Errorf("no items to triage (all items already triaged)")
 	}
 
-	data, err := json.MarshalIndent(items, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal items: %w", err)
-	}
-
-	return string(data), nil
+	return items, nil
 }
 
 // applyTriageResults applies LLM triage results to the current items.
