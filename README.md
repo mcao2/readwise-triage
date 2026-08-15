@@ -13,6 +13,19 @@ A TUI for triaging Readwise Reader inbox items with LLM-assisted categorization.
 | `make install` | Build + copy to `$GOPATH/bin` |
 | `make clean` | Remove binary |
 
+## First Run
+
+On first launch with no config, the app prompts interactively:
+
+```
+  Readwise token: <required>
+  LLM base URL [https://api.openai.com]:
+  LLM API key:
+  LLM model [gpt-4o-mini]:
+```
+
+Config is saved to `~/.config/readwise-triage/config.yaml`.
+
 ## Configuration
 
 ### Config file: `~/.config/readwise-triage/config.yaml`
