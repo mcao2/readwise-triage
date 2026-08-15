@@ -12,7 +12,6 @@ import (
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -53,12 +52,10 @@ type Model struct {
 
 	listView ListView
 	spinner  spinner.Model
-	progress progress.Model
 
-	updateProgress float64
-	statusMessage  string
-	messageType    string
-	batchMode      bool
+	statusMessage string
+	messageType   string
+	batchMode     bool
 
 	triaging      bool
 	triagingIDs   map[string]bool
@@ -106,11 +103,6 @@ func NewModel() *Model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(DefaultTheme.Primary))
 
-	p := progress.New(
-		progress.WithDefaultGradient(),
-		progress.WithoutPercentage(),
-	)
-
 	m := &Model{
 		state:         StateFetching,
 		styles:        NewStyles(DefaultTheme),
@@ -119,7 +111,6 @@ func NewModel() *Model {
 		cursor:        0,
 		spinner:       s,
 		spinnerFrames: spinner.Dot.Frames,
-		progress:      p,
 		cfg:           cfg,
 		triageStore:   triageStore,
 		inboxLookback: cfg.InboxDaysAgo,
@@ -155,7 +146,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.listView.SetWidthHeight(msg.Width, msg.Height)
-		m.progress.Width = msg.Width - 8
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -166,11 +156,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 
-	case progress.FrameMsg:
-		progressModel, cmd := m.progress.Update(msg)
-		m.progress = progressModel.(progress.Model)
-		return m, cmd
-
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
 
@@ -178,10 +163,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = msg.State
 
 	case ProgressMsg:
-		m.updateProgress = msg.Progress
 		m.statusMessage = msg.Message
-		cmd := m.progress.SetPercent(msg.Progress)
-		return m, tea.Batch(cmd, m.waitForUpdateProgress(msg.Channel, msg.Success, msg.Failed))
+		return m, m.waitForUpdateProgress(msg.Channel, msg.Success, msg.Failed)
 
 	case ItemsLoadedMsg:
 		m.fetching = false
@@ -537,7 +520,6 @@ func (m *Model) startUpdating() tea.Cmd {
 	}
 
 	m.updating = true
-	m.updateProgress = 0
 	m.statusMessage = "Preparing updates..."
 	m.confirming = false
 

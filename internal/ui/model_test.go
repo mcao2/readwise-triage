@@ -491,7 +491,7 @@ func TestAllViewRendering(t *testing.T) {
 		{"confirming", func(m *Model) { m.state = StateReviewing }},
 		{"updating", func(m *Model) {
 			m.state = StateReviewing
-			m.updateProgress = 0.5
+			m.updating = true
 			m.statusMessage = "Updating..."
 		}},
 		{"done", func(m *Model) {
