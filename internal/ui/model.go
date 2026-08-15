@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -164,6 +165,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
+		if m.triaging {
+			m.listView.SetSpinnerChar(m.spinner.View())
+		}
 		return m, cmd
 
 	case progress.FrameMsg:
@@ -385,11 +389,19 @@ func (m *Model) startTriaging() tea.Cmd {
 	numBatches := (len(items) + triageBatchSize - 1) / triageBatchSize
 	m.statusMessage = fmt.Sprintf("Triaging batch 1/%d...", numBatches)
 
-	// Mark items as being triaged
+	// Mark items as being triaged and sort them to the top
 	m.triagingIDs = make(map[string]bool)
 	for _, item := range items {
 		m.triagingIDs[item.ID] = true
 	}
+	sort.SliceStable(m.items, func(i, j int) bool {
+		iTriaging := m.triagingIDs[m.items[i].ID]
+		jTriaging := m.triagingIDs[m.items[j].ID]
+		if iTriaging != jTriaging {
+			return iTriaging
+		}
+		return false
+	})
 	m.listView.SetItems(m.items)
 	m.listView.SetTriagingIDs(m.triagingIDs)
 
