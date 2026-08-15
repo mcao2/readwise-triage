@@ -463,7 +463,7 @@ func (m *Model) startTriaging() tea.Cmd {
 			close(progressChan)
 		}()
 
-		return m.waitForTriageProgress(progressChan, nil)
+		return m.waitForTriageProgress(progressChan, nil)()
 	}
 }
 
