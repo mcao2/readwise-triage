@@ -71,8 +71,10 @@ type Model struct {
 	messageType    string
 	batchMode      bool
 
-	triaging    bool
-	triagingIDs map[string]bool
+	triaging      bool
+	triagingIDs   map[string]bool
+	spinnerIdx    int
+	spinnerFrames []string
 
 	cfg         *config.Config
 	triageStore *config.TriageStore
@@ -124,6 +126,7 @@ func NewModel() *Model {
 		items:         []Item{},
 		cursor:        0,
 		spinner:       s,
+		spinnerFrames: spinner.Dot.Frames,
 		progress:      p,
 		cfg:           cfg,
 		triageStore:   triageStore,
@@ -166,7 +169,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		if m.triaging {
-			m.listView.SetSpinnerChar(m.spinner.View())
+			m.spinnerIdx = (m.spinnerIdx + 1) % len(m.spinnerFrames)
+			m.listView.SetSpinnerChar(m.spinnerFrames[m.spinnerIdx])
 		}
 		return m, cmd
 
