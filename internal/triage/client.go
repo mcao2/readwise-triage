@@ -26,8 +26,9 @@ type ChatMessage struct {
 
 // ChatRequest represents the API request body
 type ChatRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
+	Model     string        `json:"model"`
+	Messages  []ChatMessage `json:"messages"`
+	MaxTokens int           `json:"max_tokens,omitempty"`
 }
 
 // ChatResponse represents the API response
@@ -117,7 +118,8 @@ func (c *LLMClient) TriageItems(itemsJSON string) ([]Result, error) {
 	prompt := fmt.Sprintf(AutoTriagePromptTemplate, itemsJSON)
 
 	reqBody := ChatRequest{
-		Model: c.model,
+		Model:     c.model,
+		MaxTokens: 8192,
 		Messages: []ChatMessage{
 			{Role: "system", Content: "You are a helpful assistant that analyzes reading materials and provides structured triage recommendations. Return ONLY valid JSON."},
 			{Role: "user", Content: prompt},
