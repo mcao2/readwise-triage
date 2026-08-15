@@ -198,6 +198,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMessage = msg.Error.Error()
 		m.state = StateMessage
 
+	case TriageProgressMsg:
+		m.statusMessage = fmt.Sprintf("Triaging batch %d/%d...", msg.Batch, msg.Total)
+		return m, m.waitForTriageProgress(msg.Channel, msg.Results)
+
 	case TriageFinishedMsg:
 		if msg.Err != nil {
 			m.statusMessage = fmt.Sprintf("LLM triage failed: %v", msg.Err)
@@ -345,8 +349,25 @@ type TriageFinishedMsg struct {
 	Err     error
 }
 
+// TriageBatchProgress is sent on the progress channel after each batch.
+type TriageBatchProgress struct {
+	Batch   int
+	Total   int
+	Results []triage.Result
+	Err     error
+}
+
+// TriageProgressMsg is handled by Update() to show per-batch progress.
+type TriageProgressMsg struct {
+	Batch   int
+	Total   int
+	Results []triage.Result
+	Channel chan TriageBatchProgress
+}
+
 func (m *Model) startTriaging() tea.Cmd {
 	m.state = StateTriaging
+	m.statusMessage = "Starting LLM triage..."
 
 	return func() tea.Msg {
 		if m.cfg == nil {
@@ -368,39 +389,62 @@ func (m *Model) startTriaging() tea.Cmd {
 			return TriageFinishedMsg{Err: fmt.Errorf("failed to create LLM client: %w", err)}
 		}
 
-		// Get items to triage
 		items, err := m.getTriageItems()
 		if err != nil {
 			return TriageFinishedMsg{Err: err}
 		}
 
-		// Batch: split items into chunks to avoid max_tokens truncation
-		var allResults []triage.Result
 		numBatches := (len(items) + triageBatchSize - 1) / triageBatchSize
-		for batchStart := 0; batchStart < len(items); batchStart += triageBatchSize {
-			batchEnd := batchStart + triageBatchSize
-			if batchEnd > len(items) {
-				batchEnd = len(items)
-			}
+		progressChan := make(chan TriageBatchProgress)
 
-			batchBytes, err := json.MarshalIndent(items[batchStart:batchEnd], "", "  ")
-			if err != nil {
-				return TriageFinishedMsg{Err: fmt.Errorf("failed to marshal batch: %w", err)}
-			}
+		go func() {
+			for batchStart := 0; batchStart < len(items); batchStart += triageBatchSize {
+				batchNum := batchStart/triageBatchSize + 1
+				batchEnd := batchStart + triageBatchSize
+				if batchEnd > len(items) {
+					batchEnd = len(items)
+				}
 
-			results, err := client.TriageItems(string(batchBytes))
-			if err != nil {
-				return TriageFinishedMsg{Err: fmt.Errorf("batch %d/%d failed: %w", batchStart/triageBatchSize+1, numBatches, err)}
-			}
-			allResults = append(allResults, results...)
+				batchBytes, err := json.MarshalIndent(items[batchStart:batchEnd], "", "  ")
+				if err != nil {
+					progressChan <- TriageBatchProgress{Batch: batchNum, Total: numBatches, Err: fmt.Errorf("failed to marshal batch: %w", err)}
+					break
+				}
 
-			// Small delay between batches to avoid rate limits
-			if batchEnd < len(items) {
-				time.Sleep(1 * time.Second)
+				results, err := client.TriageItems(string(batchBytes))
+				if err != nil {
+					progressChan <- TriageBatchProgress{Batch: batchNum, Total: numBatches, Err: fmt.Errorf("batch %d/%d failed: %w", batchNum, numBatches, err)}
+					break
+				}
+
+				progressChan <- TriageBatchProgress{Batch: batchNum, Total: numBatches, Results: results}
+
+				if batchEnd < len(items) {
+					time.Sleep(1 * time.Second)
+				}
 			}
+			close(progressChan)
+		}()
+
+		return m.waitForTriageProgress(progressChan, nil)
+	}
+}
+
+func (m *Model) waitForTriageProgress(ch chan TriageBatchProgress, allResults []triage.Result) tea.Cmd {
+	return func() tea.Msg {
+		progress, ok := <-ch
+		if !ok {
+			return TriageFinishedMsg{Results: allResults}
 		}
-
-		return TriageFinishedMsg{Results: allResults}
+		if progress.Err != nil {
+			return TriageFinishedMsg{Err: progress.Err}
+		}
+		return TriageProgressMsg{
+			Batch:   progress.Batch,
+			Total:   progress.Total,
+			Results: append(allResults, progress.Results...),
+			Channel: ch,
+		}
 	}
 }
 

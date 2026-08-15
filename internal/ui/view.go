@@ -28,7 +28,7 @@ func (m *Model) fetchingView() string {
 
 func (m *Model) triagingView() string {
 	spinnerView := m.spinner.View()
-	status := fmt.Sprintf("%s Processing with LLM...", spinnerView)
+	status := fmt.Sprintf("%s %s", spinnerView, m.statusMessage)
 
 	content := m.styles.Border.Render(
 		lipgloss.JoinVertical(lipgloss.Center,
