@@ -376,6 +376,7 @@ func (m *Model) startTriaging() tea.Cmd {
 	// Get items synchronously (fast — just filters in-memory)
 	items, err := m.getTriageItems()
 	if err != nil {
+		m.triaging = false
 		m.statusMessage = fmt.Sprintf("Triage failed: %v", err)
 		m.state = StateMessage
 		return nil

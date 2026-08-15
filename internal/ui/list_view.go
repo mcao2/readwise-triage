@@ -100,6 +100,7 @@ func (lv *ListView) SetItems(items []Item) {
 
 func (lv *ListView) SetTriagingIDs(ids map[string]bool) {
 	lv.triagingIDs = ids
+	lv.updateRows()
 }
 
 func (lv *ListView) updateRows() {
