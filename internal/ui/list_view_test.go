@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -114,24 +113,6 @@ func TestListView_SetWidthHeight(t *testing.T) {
 	if lv.height != 40 {
 		t.Errorf("expected height 40, got %d", lv.height)
 	}
-}
-
-func TestListView_Init(t *testing.T) {
-	lv := NewListView(80, 24)
-	cmd := lv.Init()
-	if cmd != nil {
-		t.Error("expected nil cmd from Init")
-	}
-}
-
-func TestListView_Update(t *testing.T) {
-	lv := NewListView(80, 24)
-	lv.SetItems([]Item{{ID: "1", Title: "Test"}, {ID: "2", Title: "Test 2"}})
-
-	updated, cmd := lv.Update(tea.KeyMsg{Type: tea.KeyDown})
-	_ = updated
-	_ = cmd
-	// Just verify it doesn't panic
 }
 
 func TestListView_View(t *testing.T) {
