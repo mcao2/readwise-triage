@@ -228,7 +228,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		applied := m.applyTriageResults(msg.Results)
 		m.statusMessage = fmt.Sprintf("LLM auto-triaged %d items", applied)
 		m.messageType = "success"
-		m.state = StateMessage
+		m.listView.SetItems(m.items)
 	}
 
 	return m, nil

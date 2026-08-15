@@ -1586,8 +1586,8 @@ func TestTriageFinishedMsg_Success(t *testing.T) {
 
 	m.Update(TriageFinishedMsg{Results: results})
 
-	if m.state != StateMessage {
-		t.Errorf("expected StateMessage, got %v", m.state)
+	if m.state != StateReviewing {
+		t.Errorf("expected StateReviewing, got %v", m.state)
 	}
 	if m.messageType != "success" {
 		t.Errorf("expected success message type, got %q", m.messageType)
