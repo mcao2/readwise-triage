@@ -739,29 +739,6 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor = m.listView.Cursor()
 		m.batchMode = len(m.listView.GetSelected()) > 0
 		return m, nil
-	case msg.String() == "e":
-		if err := m.ExportItemsToClipboard(); err != nil {
-			m.statusMessage = fmt.Sprintf("Export failed: %v", err)
-			m.messageType = "error"
-		} else {
-			m.statusMessage = "Items exported to clipboard! Paste to your LLM."
-			m.messageType = "success"
-		}
-		m.state = StateMessage
-		return m, nil
-	case msg.String() == "i":
-		applied, err := m.ImportTriageResultsFromClipboard()
-		if err != nil {
-			m.statusMessage = fmt.Sprintf("Import failed: %v", err)
-			m.messageType = "error"
-		} else {
-			if m.statusMessage == "" {
-				m.statusMessage = fmt.Sprintf("Applied triage results to %d items", applied)
-			}
-			m.messageType = "success"
-		}
-		m.state = StateMessage
-		return m, nil
 	case keyMatches(msg, m.keys.Update):
 		m.state = StateConfirming
 		return m, nil
@@ -1304,8 +1281,6 @@ func (m *Model) renderReviewFooter() string {
 
 	line2 = []helpEntry{
 		{"enter", "tags"},
-		{"e", "export"},
-		{"i", "import"},
 		{"T", "auto-triage"},
 		{"o", "open"},
 		{"f", "more"},
@@ -1345,8 +1320,6 @@ func (m *Model) renderFullHelp() string {
 		}},
 		{"Operations", []helpEntry{
 			{"enter", "edit tags"},
-			{"e", "export to clipboard"},
-			{"i", "import from clipboard"},
 			{"T", "auto-triage with LLM"},
 			{"o", "open URL in browser"},
 			{"u", "update Readwise"},
@@ -1486,7 +1459,7 @@ func (m *Model) applyTriageResults(results []triage.Result) int {
 			var filtered []string
 			for _, tag := range result.MetadataEnhancement.SuggestedTags {
 				lower := strings.ToLower(strings.TrimSpace(tag))
-				if !validActions[lower] {
+				if !triage.ValidActions[lower] {
 					filtered = append(filtered, tag)
 				}
 			}

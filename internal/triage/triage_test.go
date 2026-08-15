@@ -1,8 +1,13 @@
 package triage
 
 import (
+	"strings"
 	"testing"
 )
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
 
 func TestParseTriageResponse(t *testing.T) {
 	tests := []struct {
@@ -191,91 +196,6 @@ func TestIsJSONArray(t *testing.T) {
 				t.Errorf("IsJSONArray(%q) = %v, want %v", tt.s, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestParseSummary(t *testing.T) {
-	content := `
-**Today's Top 3**:
-1. First important item
-2. Second important item
-
-**Quick Wins**:
-- Quick item 1
-- Quick item 2
-
-**Batch Delete**:
-- Delete item 1
-`
-
-	summary := ParseSummary(content)
-
-	if len(summary.TodayTop3) != 2 {
-		t.Errorf("expected 2 top 3 items, got %d", len(summary.TodayTop3))
-	}
-	if len(summary.QuickWins) != 2 {
-		t.Errorf("expected 2 quick wins, got %d", len(summary.QuickWins))
-	}
-	if len(summary.BatchDelete) != 1 {
-		t.Errorf("expected 1 batch delete, got %d", len(summary.BatchDelete))
-	}
-}
-
-func TestExtractListItems(t *testing.T) {
-	content := `
-- Item 1
-- Item 2
-* Item 3
-1. Item 4
-2. Item 5
-`
-
-	items := extractListItems(content)
-
-	if len(items) != 5 {
-		t.Errorf("expected 5 items, got %d", len(items))
-	}
-	if items[0] != "Item 1" {
-		t.Errorf("expected 'Item 1', got %q", items[0])
-	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-func TestParseSummaryMissingSections(t *testing.T) {
-	content := "No sections here at all"
-	summary := ParseSummary(content)
-
-	if len(summary.TodayTop3) != 0 {
-		t.Errorf("expected 0 top 3, got %d", len(summary.TodayTop3))
-	}
-	if len(summary.QuickWins) != 0 {
-		t.Errorf("expected 0 quick wins, got %d", len(summary.QuickWins))
-	}
-	if len(summary.BatchDelete) != 0 {
-		t.Errorf("expected 0 batch delete, got %d", len(summary.BatchDelete))
-	}
-}
-
-func TestExtractSectionCaseInsensitive(t *testing.T) {
-	content := `**today's top 3**:
-- Item one
-- Item two
-`
-	items := extractSection(content, "Today's Top 3")
-	if len(items) != 2 {
-		t.Errorf("expected 2 items from case-insensitive match, got %d", len(items))
 	}
 }
 

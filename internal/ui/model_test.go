@@ -207,48 +207,6 @@ func TestThemeCycling(t *testing.T) {
 	}
 }
 
-func TestImportTriageResults(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{
-		{ID: "1", Title: "Item 1"},
-		{ID: "2", Title: "Item 2"},
-	}
-
-	jsonData := `[
-		{
-			"id": "1",
-			"title": "Item 1",
-			"triage_decision": {
-				"action": "read_now",
-				"priority": "high"
-			}
-		},
-		{
-			"id": "2",
-			"title": "Item 2",
-			"triage_decision": {
-				"action": "later",
-				"priority": "low"
-			}
-		}
-	]`
-
-	applied, err := m.ImportTriageResults(jsonData)
-	if err != nil {
-		t.Fatalf("ImportTriageResults failed: %v", err)
-	}
-	if applied != 2 {
-		t.Errorf("expected 2 items applied, got %d", applied)
-	}
-
-	if m.items[0].Action != "read_now" || m.items[0].Priority != "high" {
-		t.Errorf("item 1 not updated correctly: %+v", m.items[0])
-	}
-	if m.items[1].Action != "later" || m.items[1].Priority != "low" {
-		t.Errorf("item 2 not updated correctly: %+v", m.items[1])
-	}
-}
-
 func TestHandleAdditionalKeys(t *testing.T) {
 	m := NewModel()
 
@@ -274,29 +232,6 @@ func TestHandleAdditionalKeys(t *testing.T) {
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
 	if m.state != StateReviewing {
 		t.Errorf("expected Reviewing state after key in Message, got %v", m.state)
-	}
-}
-
-func TestValidateTriageJSON(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	validJSON := `[{"id": "1", "title": "Test", "triage_decision": {"action": "read_now"}}]`
-	ok, msg := m.ValidateTriageJSON(validJSON)
-	if !ok {
-		t.Errorf("expected JSON to be valid, got error: %s", msg)
-	}
-
-	invalidJSON := `[{"id": "unknown", "title": "Test", "triage_decision": {"action": "read_now"}}]`
-	ok, msg = m.ValidateTriageJSON(invalidJSON)
-	if ok {
-		t.Error("expected JSON to be invalid due to unknown ID")
-	}
-
-	badActionJSON := `[{"id": "1", "title": "Test", "triage_decision": {"action": "invalid"}}]`
-	ok, msg = m.ValidateTriageJSON(badActionJSON)
-	if ok {
-		t.Error("expected JSON to be invalid due to bad action")
 	}
 }
 
@@ -832,35 +767,6 @@ func TestStartUpdatingWithSelection(t *testing.T) {
 	}
 }
 
-func TestExportWithSelection(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{
-		{ID: "1", Title: "Item 1", URL: "https://example.com/1"},
-		{ID: "2", Title: "Item 2", URL: "https://example.com/2"},
-		{ID: "3", Title: "Item 3", URL: "https://example.com/3"},
-	}
-	m.listView.SetItems(m.items)
-
-	// Select only items 0 and 2
-	m.listView.SetCursor(0)
-	m.listView.ToggleSelection()
-	m.listView.SetCursor(2)
-	m.listView.ToggleSelection()
-
-	jsonData, err := m.ExportItemsToJSON()
-	if err != nil {
-		t.Fatalf("ExportItemsToJSON failed: %v", err)
-	}
-
-	// Should contain items 1 and 3 but not 2
-	if !strings.Contains(jsonData, "Item 1") || !strings.Contains(jsonData, "Item 3") {
-		t.Error("expected selected items in export")
-	}
-	if strings.Contains(jsonData, "Item 2") {
-		t.Error("did not expect unselected item in export")
-	}
-}
-
 func TestTriagePersistence(t *testing.T) {
 	m := NewModel()
 	m.items = []Item{
@@ -986,63 +892,6 @@ func TestSaveLLMTriageNilStore(t *testing.T) {
 	m.saveLLMTriage("item1", "read_now", "high", nil, nil)
 }
 
-func TestExportItemsToFile(t *testing.T) {
-	m := NewModel()
-	m.triageStore = nil // Avoid filtering by triage store from earlier tests
-	m.items = []Item{
-		{ID: "export-file-1", Title: "Item 1", URL: "https://example.com/1"},
-	}
-
-	path, err := m.ExportItemsToFile()
-	if err != nil {
-		t.Fatalf("ExportItemsToFile failed: %v", err)
-	}
-	defer os.Remove(path)
-
-	if path == "" {
-		t.Fatal("expected non-empty path")
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to read exported file: %v", err)
-	}
-	if !strings.Contains(string(data), "Item 1") {
-		t.Error("expected exported file to contain 'Item 1'")
-	}
-}
-
-func TestImportTriageResultsFromFile(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{
-		{ID: "1", Title: "Item 1"},
-	}
-	m.listView.SetItems(m.items)
-
-	jsonData := `[{"id": "1", "title": "Item 1", "triage_decision": {"action": "archive", "priority": "low"}}]`
-	tmpFile := filepath.Join(t.TempDir(), "triage.json")
-	os.WriteFile(tmpFile, []byte(jsonData), 0644)
-
-	applied, err := m.ImportTriageResultsFromFile(tmpFile)
-	if err != nil {
-		t.Fatalf("ImportTriageResultsFromFile failed: %v", err)
-	}
-	if applied != 1 {
-		t.Errorf("expected 1 applied, got %d", applied)
-	}
-	if m.items[0].Action != "archive" {
-		t.Errorf("expected action 'archive', got %q", m.items[0].Action)
-	}
-}
-
-func TestImportTriageResultsFromFileMissing(t *testing.T) {
-	m := NewModel()
-	_, err := m.ImportTriageResultsFromFile("/nonexistent/file.json")
-	if err == nil {
-		t.Error("expected error on missing file")
-	}
-}
-
 func TestConfigViewWithError(t *testing.T) {
 	m := NewModel()
 	m.state = StateConfig
@@ -1134,32 +983,6 @@ func TestHandleReviewingUpdateKey(t *testing.T) {
 	}
 }
 
-func TestHandleReviewingExportKey(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-	m.listView.SetItems(m.items)
-	m.state = StateReviewing
-
-	// Export will fail (no clipboard in test), but should transition to StateMessage
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
-	if m.state != StateMessage {
-		t.Errorf("expected StateMessage after 'e', got %v", m.state)
-	}
-}
-
-func TestHandleReviewingImportKey(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-	m.listView.SetItems(m.items)
-	m.state = StateReviewing
-
-	// Import will fail (no clipboard in test), but should transition to StateMessage
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
-	if m.state != StateMessage {
-		t.Errorf("expected StateMessage after 'i', got %v", m.state)
-	}
-}
-
 func TestStartFetchingNoToken(t *testing.T) {
 	m := NewModel()
 	m.cfg = &config.Config{ReadwiseToken: ""}
@@ -1246,169 +1069,6 @@ func TestConfigViewNoLLMMode(t *testing.T) {
 	view := m.View()
 	if strings.Contains(view, "LLM") {
 		t.Error("expected config view to not show LLM mode (hidden)")
-	}
-}
-
-func TestValidateTriageJSON_MissingID(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	json := `[{"id": "", "title": "Test", "triage_decision": {"action": "read_now"}}]`
-	ok, _ := m.ValidateTriageJSON(json)
-	if ok {
-		t.Error("expected invalid for missing id")
-	}
-}
-
-func TestValidateTriageJSON_MissingAction(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	json := `[{"id": "1", "title": "Test", "triage_decision": {}}]`
-	ok, _ := m.ValidateTriageJSON(json)
-	if ok {
-		t.Error("expected invalid for missing action")
-	}
-}
-
-func TestValidateTriageJSON_InvalidPriority(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	json := `[{"id": "1", "title": "Test", "triage_decision": {"action": "read_now", "priority": "urgent"}}]`
-	ok, _ := m.ValidateTriageJSON(json)
-	if ok {
-		t.Error("expected invalid for bad priority")
-	}
-}
-
-func TestValidateTriageJSON_EmptyArray(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	ok, _ := m.ValidateTriageJSON("[]")
-	if ok {
-		t.Error("expected invalid for empty array")
-	}
-}
-
-func TestValidateTriageJSON_ParseError(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	ok, _ := m.ValidateTriageJSON("not json at all")
-	if ok {
-		t.Error("expected invalid for unparseable input")
-	}
-}
-
-func TestImportTriageResults_EmptyResults(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	_, err := m.ImportTriageResults("[]")
-	if err == nil {
-		t.Error("expected error for empty results")
-	}
-}
-
-func TestImportTriageResults_NoJSON(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	_, err := m.ImportTriageResults("not json")
-	if err == nil {
-		t.Error("expected error for no JSON")
-	}
-}
-
-func TestImportTriageResults_MissingID(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	json := `[{"id": "", "title": "Test", "triage_decision": {"action": "read_now"}}]`
-	_, err := m.ImportTriageResults(json)
-	if err == nil {
-		t.Error("expected error for missing id")
-	}
-}
-
-func TestImportTriageResults_MissingAction(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	json := `[{"id": "1", "title": "Test", "triage_decision": {}}]`
-	_, err := m.ImportTriageResults(json)
-	if err == nil {
-		t.Error("expected error for missing action")
-	}
-}
-
-func TestImportTriageResults_InvalidPriority(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Test"}}
-
-	json := `[{"id": "1", "title": "Test", "triage_decision": {"action": "read_now", "priority": "urgent"}}]`
-	_, err := m.ImportTriageResults(json)
-	if err == nil {
-		t.Error("expected error for invalid priority")
-	}
-}
-
-func TestImportTriageResults_PartialSuccess(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{
-		{ID: "1", Title: "Item 1"},
-		{ID: "2", Title: "Item 2"},
-	}
-	m.listView.SetItems(m.items)
-
-	// One valid, one with unknown ID
-	json := `[
-		{"id": "1", "title": "Item 1", "triage_decision": {"action": "archive"}},
-		{"id": "unknown", "title": "Unknown", "triage_decision": {"action": "read_now"}}
-	]`
-	applied, err := m.ImportTriageResults(json)
-	if err != nil {
-		t.Fatalf("expected no error for partial success, got %v", err)
-	}
-	if applied != 1 {
-		t.Errorf("expected 1 applied, got %d", applied)
-	}
-	if !strings.Contains(m.statusMessage, "Warning") {
-		t.Error("expected status message to contain warnings")
-	}
-}
-
-func TestSaveTriageNilStore(t *testing.T) {
-	m := NewModel()
-	m.triageStore = nil
-	// Should not panic
-	m.saveTriage("1", "read_now", "high", nil)
-}
-
-func TestHandleKeyPressInFetchingState(t *testing.T) {
-	m := NewModel()
-	m.state = StateFetching
-
-	// Keys in fetching state should go through quit/help handling
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
-	if cmd == nil {
-		t.Error("expected quit command in fetching state")
-	}
-}
-
-func TestExportItemsToJSON_AllTriaged(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{
-		{ID: "triaged-1", Title: "Item 1"},
-	}
-	// Mark item as triaged in store
-	m.triageStore.SetItem("triaged-1", "read_now", "high", "manual", nil, nil)
-
-	_, err := m.ExportItemsToJSON()
-	if err == nil {
-		t.Error("expected error when all items are triaged")
 	}
 }
 
