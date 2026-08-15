@@ -1,57 +1,67 @@
 # Readwise Triage
 
-A CLI tool for triaging Readwise Reader inbox items with LLM-assisted categorization.
+A TUI for triaging Readwise Reader inbox items with LLM-assisted categorization.
 
-## Features
+## Build
 
-- **Automated LLM Triage**: Press `T` to auto-triage items via any OpenAI-compatible API (OpenAI, Ollama, OpenRouter, etc.).
-- **Interactive List View**: Navigate with vim-style keys (`j`/`k`), visual indicators for actions (🔥⏰📁), open articles in browser (`o`).
-- **Quick Triage**: One-key shortcuts for actions (`r` = read, `l` = later, `a` = archive).
-- **Tag Editing**: Edit AI-suggested tags inline with `e`.
-- **Batch Operations**: Select multiple items with `x`/`space` to apply actions to all at once.
-- **Persistence**: Triage decisions and lookback days are saved locally across sessions.
+| Command | Description |
+|---------|-------------|
+| `make build` | Build binary |
+| `make run` | Run via `go run` |
+| `make check` | fmt + vet + test |
+| `make check-fast` | build + test |
+| `make install` | Build + copy to `$GOPATH/bin` |
+| `make clean` | Remove binary |
 
 ## Configuration
 
-Set credentials via environment variables:
+### Config file: `~/.config/readwise-triage/config.yaml`
 
-```sh
-export READWISE_TOKEN="your-readwise-access-token"
-export LLM_API_KEY="your-llm-api-key"
-```
-
-Or in `~/.config/readwise-triage/config.yaml`:
+Override path with `READWISE_TRIAGE_CONFIG`.
 
 ```yaml
 readwise_token: ""
 llm:
-  base_url: ""    # e.g. https://api.openai.com
   api_key: ""
-  model: ""       # e.g. gpt-4o-mini
+  base_url: ""
+  model: ""
 inbox_days_ago: 7
 ```
 
-## Keyboard Interactions
+### Parameters
 
-| Key | Context | Action |
-|-----|---------|--------|
-| `j` / `k` | Review | Navigate down / up |
-| `r` | Review | Mark as **read** |
-| `l` | Review | Mark as **later** |
-| `a` | Review | Mark as **archive** |
-| `d` | Review | Archive (same as `a`) |
-| `x` / `space` | Review | Toggle selection |
-| `o` | Review | Open URL in browser |
-| `u` | Review | Update Readwise with triage |
-| `e` | Review | Edit tags |
-| `f` | Review | Fetch more items |
-| `T` | Review | Auto-triage with LLM |
-| `R` | Review | Refresh from Readwise |
-| `?` | Any | Toggle help |
-| `q` | Any | Quit |
+| Param | Key | Env var | Default | Required |
+|-------|-----|---------|---------|----------|
+| Readwise token | `readwise_token` | `READWISE_TOKEN` | — | Yes |
+| LLM API key | `llm.api_key` | `LLM_API_KEY` | — | Cloud only |
+| LLM base URL | `llm.base_url` | `LLM_BASE_URL` | — | Cloud only |
+| LLM model | `llm.model` | `LLM_MODEL` | — | Yes (for triage) |
+| Inbox days | `inbox_days_ago` | `INBOX_DAYS_AGO` | `7` | No |
+| Config path | — | `READWISE_TRIAGE_CONFIG` | `~/.config/readwise-triage/config.yaml` | No |
 
-## Build
+Env vars override config file. Any OpenAI-compatible API works (OpenAI, Ollama, OpenRouter, etc.).
 
-```sh
-go build -o readwise-triage ./cmd/readwise-triage
-```
+## Keys
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Navigate down / up |
+| `r` | Mark read |
+| `l` | Mark later |
+| `a` / `d` | Archive |
+| `x` / `space` | Toggle selection |
+| `enter` | Edit tags |
+| `o` | Open URL in browser |
+| `u` | Push to Readwise |
+| `f` | Fetch more (+7 days) |
+| `T` | Auto-triage with LLM |
+| `R` | Refresh from Readwise |
+| `?` | Toggle help |
+| `q` | Quit |
+
+## Persistence
+
+| File | Content |
+|------|---------|
+| `~/.config/readwise-triage/config.yaml` | Config (token, LLM, days) |
+| `~/.config/readwise-triage/triage_store.json` | Triage decisions + LLM reports |
