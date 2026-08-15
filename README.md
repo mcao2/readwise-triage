@@ -49,6 +49,7 @@ inbox_days_ago: 7
 | LLM API key | `llm.api_key` | `LLM_API_KEY` | — | Cloud only |
 | LLM base URL | `llm.base_url` | `LLM_BASE_URL` | — | Cloud only |
 | LLM model | `llm.model` | `LLM_MODEL` | — | Yes (for triage) |
+| LLM max tokens | `llm.max_tokens` | `LLM_MAX_TOKENS` | `8192` | No |
 | Inbox days | `inbox_days_ago` | `INBOX_DAYS_AGO` | `7` | No |
 | Config path | — | `READWISE_TRIAGE_CONFIG` | `~/.config/readwise-triage/config.yaml` | No |
 

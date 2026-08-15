@@ -47,6 +47,7 @@ type LLMClient struct {
 	apiKey     string
 	model      string
 	baseURL    string
+	maxTokens  int
 	httpClient *http.Client
 }
 
@@ -65,6 +66,15 @@ func WithLLMModel(model string) LLMOption {
 	return func(c *LLMClient) {
 		if model != "" {
 			c.model = model
+		}
+	}
+}
+
+// WithLLMMaxTokens sets max output tokens
+func WithLLMMaxTokens(n int) LLMOption {
+	return func(c *LLMClient) {
+		if n > 0 {
+			c.maxTokens = n
 		}
 	}
 }
@@ -105,6 +115,10 @@ func NewLLMClient(apiKey string, opts ...LLMOption) (*LLMClient, error) {
 		client.baseURL = baseURL + "/v1/chat/completions"
 	}
 
+	if client.maxTokens == 0 {
+		client.maxTokens = 8192
+	}
+
 	if client.model == "" {
 		return nil, fmt.Errorf("LLM model is required")
 	}
@@ -119,7 +133,7 @@ func (c *LLMClient) TriageItems(itemsJSON string) ([]Result, error) {
 
 	reqBody := ChatRequest{
 		Model:     c.model,
-		MaxTokens: 8192,
+		MaxTokens: c.maxTokens,
 		Messages: []ChatMessage{
 			{Role: "system", Content: "You are a helpful assistant that analyzes reading materials and provides structured triage recommendations. Return ONLY valid JSON."},
 			{Role: "user", Content: prompt},

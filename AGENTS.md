@@ -35,6 +35,7 @@ internal/triage/    LLM client (OpenAI-compatible), prompt, parser, result types
 | `llm.api_key` | `LLM_API_KEY` | — |
 | `llm.base_url` | `LLM_BASE_URL` | — |
 | `llm.model` | `LLM_MODEL` | — |
+| `llm.max_tokens` | `LLM_MAX_TOKENS` | `8192` |
 | `inbox_days_ago` | `INBOX_DAYS_AGO` | `7` |
 | — | `READWISE_TRIAGE_CONFIG` | `~/.config/readwise-triage/config.yaml` |
 

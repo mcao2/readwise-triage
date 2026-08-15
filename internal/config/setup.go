@@ -24,18 +24,18 @@ func Setup(cfg *Config) (*Config, error) {
 	fmt.Println()
 
 	// 1. Readwise token (required)
-	cfg.ReadwiseToken = prompt(reader, "Readwise token", "", true)
 	fmt.Println("  Get yours at: https://readwise.io/access_token")
+	cfg.ReadwiseToken = prompt(reader, "Readwise token", "", true)
 	fmt.Println()
 
 	// 2. LLM base URL (optional, default OpenAI)
-	cfg.LLM.BaseURL = prompt(reader, "LLM base URL", "https://api.openai.com", false)
 	fmt.Println("  Any OpenAI-compatible API (OpenAI, Ollama, OpenRouter, etc.)")
+	cfg.LLM.BaseURL = prompt(reader, "LLM base URL", "https://api.openai.com", false)
 	fmt.Println()
 
 	// 3. LLM API key (optional for local, required for cloud)
-	cfg.LLM.APIKey = prompt(reader, "LLM API key", "", false)
 	fmt.Println("  Leave empty for local providers (e.g., Ollama)")
+	cfg.LLM.APIKey = prompt(reader, "LLM API key", "", false)
 	fmt.Println()
 
 	// 4. LLM model (optional)

@@ -11,9 +11,10 @@ import (
 
 // LLMConfig holds LLM provider configuration
 type LLMConfig struct {
-	APIKey  string `yaml:"api_key"`
-	BaseURL string `yaml:"base_url"` // custom endpoint
-	Model   string `yaml:"model"`    // model name
+	APIKey    string `yaml:"api_key"`
+	BaseURL   string `yaml:"base_url"`   // custom endpoint
+	Model     string `yaml:"model"`      // model name
+	MaxTokens int    `yaml:"max_tokens"` // max output tokens (default 8192)
 }
 
 // Config holds application configuration
@@ -37,6 +38,16 @@ func (c *Config) GetLLMConfig() LLMConfig {
 	}
 	if model := os.Getenv("LLM_MODEL"); model != "" {
 		llm.Model = model
+	}
+	if maxTokens := os.Getenv("LLM_MAX_TOKENS"); maxTokens != "" {
+		if n, err := strconv.Atoi(maxTokens); err == nil && n > 0 {
+			llm.MaxTokens = n
+		}
+	}
+
+	// Default to 8192 if not set
+	if llm.MaxTokens == 0 {
+		llm.MaxTokens = 8192
 	}
 
 	return llm
@@ -168,6 +179,7 @@ llm:
   api_key: ""              # required for cloud providers; not needed for ollama
   base_url: ""             # endpoint URL (e.g., https://api.openai.com)
   model: ""                # model name (e.g., gpt-4o-mini)
+  max_tokens: 8192           # max output tokens (default 8192)
 
 # Optional: Default number of days to fetch (default: 7)
 inbox_days_ago: 7
