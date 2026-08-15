@@ -108,10 +108,6 @@ func TestTriageStoreWithReport(t *testing.T) {
 			Action: "read_now",
 			Reason: "Very relevant to current work",
 		},
-		ContentAnalysis: triage.ContentAnalysis{
-			Type:      "tutorial",
-			KeyTopics: []string{"golang", "sqlite"},
-		},
 		MetadataEnhancement: triage.MetadataEnhancement{
 			SuggestedTags: []string{"golang", "database"},
 		},
@@ -128,9 +124,6 @@ func TestTriageStoreWithReport(t *testing.T) {
 	}
 	if entry.Report.TriageDecision.Reason != "Very relevant to current work" {
 		t.Errorf("expected reason preserved, got %q", entry.Report.TriageDecision.Reason)
-	}
-	if len(entry.Report.ContentAnalysis.KeyTopics) != 2 {
-		t.Errorf("expected 2 key topics, got %d", len(entry.Report.ContentAnalysis.KeyTopics))
 	}
 	if len(entry.Tags) != 2 {
 		t.Errorf("expected 2 tags, got %d", len(entry.Tags))

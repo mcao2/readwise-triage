@@ -168,8 +168,6 @@ func getActionText(action string) string {
 		return "⏰ Later"
 	case "archive":
 		return "📁 Archive"
-	case "delete":
-		return "❌ Delete"
 	default:
 		return "· New"
 	}

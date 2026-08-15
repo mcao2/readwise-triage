@@ -22,7 +22,7 @@ const AutoTriagePromptTemplate = `You are my personal reading assistant. I will 
   "url": "url",
   
   "triage_decision": {
-    "action": "delete|archive|later|read_now",
+    "action": "archive|later|read_now",
     "reason": "why this classification (1-2 sentences)"
   },
   
@@ -36,8 +36,7 @@ const AutoTriagePromptTemplate = `You are my personal reading assistant. I will 
 **Special Rules:**
 1. **action = "read_now"**: Only for items that are highly actionable, from credible sources, and can solve problems I might currently face.
 2. **action = "later"**: Valuable but not urgent, or requires a full time block.
-3. **action = "archive"**: Might be useful later but don't need deep reading now.
-4. **action = "delete"**: Marketing content, duplicates, outdated info, clearly irrelevant.
+3. **action = "archive"**: Might be useful later but don't need deep reading now. Also use for marketing content, duplicates, outdated info, or clearly irrelevant items.
 
 ---
 

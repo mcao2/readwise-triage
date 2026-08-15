@@ -562,12 +562,8 @@ func (m *Model) startUpdating() tea.Cmd {
 				}
 			case "later":
 				update.Location = "later"
-			case "archive", "delete":
+			case "archive":
 				update.Location = "archive"
-			case "needs_review":
-				if m.fetchLocation == "feed" {
-					update.Location = "new"
-				}
 			}
 
 			// Start with original Readwise tags to preserve them
@@ -756,7 +752,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "a":
 			m.applyBatchAction("archive")
 		case "d":
-			m.applyBatchAction("delete")
+			m.applyBatchAction("archive")
 		}
 		return m, nil
 	}
@@ -770,7 +766,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "a":
 			m.setItemAction(item, "archive")
 		case "d":
-			m.setItemAction(item, "delete")
+			m.setItemAction(item, "archive")
 		}
 	}
 
@@ -1266,7 +1262,7 @@ func (m *Model) renderFullHelp() string {
 			{"r", "read now"},
 			{"l", "later"},
 			{"a", "archive"},
-			{"d", "delete"},
+			{"d", "archive"},
 		}},
 		{"Operations", []helpEntry{
 			{"enter", "edit tags"},

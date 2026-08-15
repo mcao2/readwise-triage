@@ -85,16 +85,13 @@ func TestGetActionText(t *testing.T) {
 	if !strings.Contains(getActionText("archive"), "Archive") {
 		t.Error("archive should contain 'Archive'")
 	}
-	if !strings.Contains(getActionText("delete"), "Delete") {
-		t.Error("delete should contain 'Delete'")
-	}
 	if !strings.Contains(getActionText(""), "New") {
 		t.Error("empty action should contain 'New'")
 	}
 }
 
 func TestActionTextAlignment(t *testing.T) {
-	actions := []string{"read_now", "later", "archive", "delete", ""}
+	actions := []string{"read_now", "later", "archive", ""}
 
 	// All action texts should fit within 10 chars (column width)
 	for _, action := range actions {

@@ -406,7 +406,7 @@ func TestAllSingleItemActions(t *testing.T) {
 		{"r", "read_now"},
 		{"l", "later"},
 		{"a", "archive"},
-		{"d", "delete"},
+		{"d", "archive"},
 	}
 
 	for _, tt := range tests {
@@ -431,7 +431,7 @@ func TestAllBatchActions(t *testing.T) {
 		{"r", "read_now"},
 		{"l", "later"},
 		{"a", "archive"},
-		{"d", "delete"},
+		{"d", "archive"},
 	}
 
 	for _, tt := range tests {
