@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -22,8 +21,7 @@ import (
 type State int
 
 const (
-	StateConfig State = iota
-	StateFetching
+	StateFetching State = iota
 	StateTriaging
 	StateReviewing
 	StateConfirming
@@ -34,8 +32,6 @@ const (
 
 func (s State) String() string {
 	switch s {
-	case StateConfig:
-		return "Config"
 	case StateFetching:
 		return "Fetching"
 	case StateTriaging:
@@ -122,7 +118,7 @@ func NewModel() *Model {
 	)
 
 	m := &Model{
-		state:         StateConfig,
+		state:         StateFetching,
 		styles:        NewStyles(DefaultTheme),
 		keys:          DefaultKeyMap(),
 		items:         []Item{},
@@ -201,7 +197,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ErrorMsg:
 		m.statusMessage = msg.Error.Error()
-		m.state = StateConfig
+		m.state = StateMessage
 
 	case TriageFinishedMsg:
 		if msg.Err != nil {
@@ -224,8 +220,6 @@ func (m *Model) View() string {
 	centered := true
 
 	switch m.state {
-	case StateConfig:
-		content = m.configView()
 	case StateFetching:
 		content = m.fetchingView()
 	case StateTriaging:
@@ -269,8 +263,6 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.state {
-	case StateConfig:
-		return m.handleConfigKeys(msg)
 	case StateReviewing:
 		return m.handleReviewingKeys(msg)
 	case StateConfirming:
@@ -303,57 +295,6 @@ type ErrorMsg struct {
 type UpdateFinishedMsg struct {
 	Success int
 	Failed  int
-}
-
-func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Days input editing mode
-	if m.editingDays {
-		switch msg.Type {
-		case tea.KeyEnter:
-			if days, err := strconv.Atoi(m.daysInput); err == nil && days >= 1 {
-				*m.activeLookbackPtr() = days
-				m.saveLookback()
-			}
-			m.editingDays = false
-			m.daysInput = ""
-		case tea.KeyEsc:
-			m.editingDays = false
-			m.daysInput = ""
-		case tea.KeyBackspace:
-			if len(m.daysInput) > 0 {
-				m.daysInput = m.daysInput[:len(m.daysInput)-1]
-			}
-		default:
-			if len(msg.String()) == 1 && msg.String()[0] >= '0' && msg.String()[0] <= '9' {
-				m.daysInput += msg.String()
-			}
-		}
-		return m, nil
-	}
-
-	switch {
-	case keyMatches(msg, m.keys.Enter):
-		return m, m.startFetching()
-	case keyMatches(msg, m.keys.Up):
-		*m.activeLookbackPtr() += 7
-		m.saveLookback()
-	case keyMatches(msg, m.keys.Down):
-		if m.activeLookback() > 1 {
-			*m.activeLookbackPtr() -= 7
-			if m.activeLookback() < 1 {
-				*m.activeLookbackPtr() = 1
-			}
-			m.saveLookback()
-		}
-	default:
-		// Pressing a digit starts days editing mode
-		if len(msg.String()) == 1 && msg.String()[0] >= '0' && msg.String()[0] <= '9' {
-			m.editingDays = true
-			m.daysInput = msg.String()
-			return m, nil
-		}
-	}
-	return m, nil
 }
 
 func (m *Model) startFetching() tea.Cmd {
@@ -650,8 +591,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyMatches(msg, m.keys.AutoTriage):
 		return m, m.startTriaging()
 	case keyMatches(msg, m.keys.Back):
-		m.state = StateConfig
-		return m, nil
+		return m, m.startFetching()
 	}
 
 	if m.batchMode {

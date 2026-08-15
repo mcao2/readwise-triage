@@ -28,8 +28,8 @@ func TestMain(m *testing.M) {
 
 func TestNewModel(t *testing.T) {
 	m := NewModel()
-	if m.state != StateConfig {
-		t.Errorf("expected initial state StateConfig, got %v", m.state)
+	if m.state != StateFetching {
+		t.Errorf("expected initial state StateFetching, got %v", m.state)
 	}
 	if m.cursor != 0 {
 		t.Errorf("expected initial cursor 0, got %d", m.cursor)
@@ -57,8 +57,8 @@ func TestStateTransitions(t *testing.T) {
 	}
 
 	m.Update(ErrorMsg{Error: fmt.Errorf("test error")})
-	if m.state != StateConfig {
-		t.Errorf("expected state StateConfig after error, got %v", m.state)
+	if m.state != StateMessage {
+		t.Errorf("expected state StateMessage after error, got %v", m.state)
 	}
 
 	m.Update(ItemsLoadedMsg{Items: items})
@@ -473,7 +473,6 @@ func TestAllViewRendering(t *testing.T) {
 		name  string
 		setup func(m *Model)
 	}{
-		{"config", func(m *Model) { m.state = StateConfig }},
 		{"fetching", func(m *Model) { m.state = StateFetching }},
 		{"triaging", func(m *Model) { m.state = StateTriaging }},
 		{"reviewing", func(m *Model) {
@@ -666,7 +665,6 @@ func TestStateString(t *testing.T) {
 		state State
 		want  string
 	}{
-		{StateConfig, "Config"},
 		{StateFetching, "Fetching"},
 		{StateTriaging, "Triaging"},
 		{StateReviewing, "Reviewing"},
@@ -731,16 +729,6 @@ func TestSaveLLMTriageNilStore(t *testing.T) {
 	m.triageStore = nil
 	// Should not panic
 	m.saveLLMTriage("item1", "read_now", nil, nil)
-}
-
-func TestConfigViewWithError(t *testing.T) {
-	m := NewModel()
-	m.state = StateConfig
-	m.statusMessage = "some error"
-	view := m.View()
-	if !strings.Contains(view, "some error") {
-		t.Error("expected config view to show error message")
-	}
 }
 
 func TestReviewingViewWithStatus(t *testing.T) {
@@ -856,29 +844,6 @@ func TestStartTriaging(t *testing.T) {
 	}
 	if tfMsg.Err == nil {
 		t.Error("expected error in TriageFinishedMsg when LLM is not configured")
-	}
-}
-
-func TestConfigEnterKey(t *testing.T) {
-	m := NewModel()
-	m.cfg = &config.Config{ReadwiseToken: ""}
-	m.state = StateConfig
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd == nil {
-		t.Error("expected command after Enter in config")
-	}
-	if m.state != StateFetching {
-		t.Errorf("expected StateFetching, got %v", m.state)
-	}
-}
-
-func TestConfigViewRendering(t *testing.T) {
-	m := NewModel()
-	m.state = StateConfig
-	view := m.View()
-	if strings.Contains(view, "LLM") {
-		t.Error("expected config view to not show LLM mode (hidden)")
 	}
 }
 
@@ -1167,93 +1132,6 @@ func TestNavigationAfterMultipleUpdateCycles(t *testing.T) {
 				t.Fatalf("cycle %d: listView item %d is nil", cycle, i)
 			}
 		}
-	}
-}
-
-func TestConfigDaysAdjust(t *testing.T) {
-	m := NewModel()
-	m.state = StateConfig
-	initial := m.activeLookback()
-
-	// Up increases by 7
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
-	if m.activeLookback() != initial+7 {
-		t.Errorf("expected lookback %d after Up, got %d", initial+7, m.activeLookback())
-	}
-
-	// Down decreases by 7
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	if m.activeLookback() != initial {
-		t.Errorf("expected lookback %d after Down, got %d", initial, m.activeLookback())
-	}
-
-	// Down should not go below 1
-	m.inboxLookback = 3
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	if m.activeLookback() < 1 {
-		t.Errorf("expected lookback >= 1, got %d", m.activeLookback())
-	}
-}
-
-func TestConfigDaysDirectInput(t *testing.T) {
-	m := NewModel()
-	m.state = StateConfig
-
-	// Type "30" then Enter to set days to 30
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
-	if !m.editingDays {
-		t.Fatal("expected editingDays to be true after pressing digit")
-	}
-	if m.daysInput != "3" {
-		t.Errorf("expected daysInput '3', got %q", m.daysInput)
-	}
-
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("0")})
-	if m.daysInput != "30" {
-		t.Errorf("expected daysInput '30', got %q", m.daysInput)
-	}
-
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if m.editingDays {
-		t.Fatal("expected editingDays to be false after Enter")
-	}
-	if m.activeLookback() != 30 {
-		t.Errorf("expected lookback 30, got %d", m.activeLookback())
-	}
-
-	// Esc cancels without changing value
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("5")})
-	if !m.editingDays {
-		t.Fatal("expected editingDays after pressing digit")
-	}
-	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if m.editingDays {
-		t.Fatal("expected editingDays to be false after Esc")
-	}
-	if m.activeLookback() != 30 {
-		t.Errorf("expected lookback still 30 after Esc, got %d", m.activeLookback())
-	}
-
-	// Invalid input (0) is ignored on Enter
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("0")})
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if m.activeLookback() != 30 {
-		t.Errorf("expected lookback still 30 after entering 0, got %d", m.activeLookback())
-	}
-
-	// Backspace removes last digit
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("5")})
-	if m.daysInput != "45" {
-		t.Errorf("expected daysInput '45', got %q", m.daysInput)
-	}
-	m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	if m.daysInput != "4" {
-		t.Errorf("expected daysInput '4' after backspace, got %q", m.daysInput)
-	}
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if m.activeLookback() != 4 {
-		t.Errorf("expected lookback 4, got %d", m.activeLookback())
 	}
 }
 

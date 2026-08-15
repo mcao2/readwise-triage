@@ -7,53 +7,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func (m *Model) configView() string {
-	// Styled title
-	title := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(DefaultTheme.Primary)).
-		Render("  Readwise Triage")
-
-	// Days lookback
-	var daysLine string
-	if m.editingDays {
-		daysLine = fmt.Sprintf("  📅  %s", m.styles.Normal.Render("Days: "+m.daysInput+"▌"))
-	} else {
-		daysLine = fmt.Sprintf("  📅  %s", m.styles.Normal.Render(fmt.Sprintf("Fetch last %d days", m.activeLookback())))
-	}
-
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		"",
-		title,
-		"",
-		daysLine,
-		"",
-	)
-
-	// Error display
-	if m.statusMessage != "" {
-		errLine := m.styles.Error.Render("  ⚠  " + m.statusMessage)
-		content = lipgloss.JoinVertical(lipgloss.Left, content, errLine, "")
-	}
-
-	// Help
-	help := m.renderHelpLine([]helpEntry{
-		{"enter", "start"},
-		{"j/k", "days ±7"},
-		{"0-9", "type days"},
-		{"q", "quit"},
-	})
-
-	card := m.styles.Card.Render(content)
-
-	return lipgloss.JoinVertical(lipgloss.Center,
-		"",
-		card,
-		"",
-		help,
-	)
-}
-
 func (m *Model) fetchingView() string {
 	spinnerView := m.spinner.View()
 	status := fmt.Sprintf("%s Loading from Readwise...", spinnerView)
