@@ -47,7 +47,7 @@ func Setup(cfg *Config) (*Config, error) {
 		cfg.InboxDaysAgo = 7
 	}
 
-	if err := cfg.Save(); err != nil {
+	if err := cfg.SaveFull(); err != nil {
 		return nil, fmt.Errorf("failed to save config: %w", err)
 	}
 

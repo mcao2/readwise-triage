@@ -188,7 +188,25 @@ inbox_days_ago: 7
 	return os.WriteFile(configPath, []byte(example), 0600)
 }
 
+// SaveFull writes all config fields to disk. Used by interactive setup only.
+func (c *Config) SaveFull() error {
+	configDir, err := EnsureConfigDir()
+	if err != nil {
+		return err
+	}
+
+	configPath := filepath.Join(configDir, "config.yaml")
+
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	return os.WriteFile(configPath, data, 0600)
+}
+
 func (c *Config) Save() error {
+	// Only persist InboxDaysAgo — env-var secrets must not leak to disk
 	configDir, err := EnsureConfigDir()
 	if err != nil {
 		return err
@@ -202,13 +220,7 @@ func (c *Config) Save() error {
 		yaml.Unmarshal(data, existing)
 	}
 
-	// Save all fields, but preserve existing token if current is empty
-	if c.ReadwiseToken != "" {
-		existing.ReadwiseToken = c.ReadwiseToken
-	}
-	if c.LLM.APIKey != "" || c.LLM.BaseURL != "" || c.LLM.Model != "" {
-		existing.LLM = c.LLM
-	}
+	// Only persist InboxDaysAgo — env-var secrets must not leak to disk
 	existing.InboxDaysAgo = c.InboxDaysAgo
 
 	data, err := yaml.Marshal(existing)

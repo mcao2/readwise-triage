@@ -45,8 +45,8 @@ Env vars override config file. OpenAI-compatible only (no Anthropic).
 
 | Action | Key | Readwise effect |
 |--------|-----|-----------------|
-| `read_now` | `r` | Tags: read-now |
-| `later` | `l` | Tags: read-later |
+| `read_now` | `r` | Stays in inbox |
+| `later` | `l` | `location: later` |
 | `archive` | `a` / `d` | `location: archive` |
 
 No `needs_review`, no `delete` (archive covers both).
