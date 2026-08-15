@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -191,6 +192,11 @@ func (c *LLMClient) doRequest(body []byte) ([]Result, error) {
 	content, err := c.extractContent(respBody)
 	if err != nil {
 		return nil, err
+	}
+
+	// Debug: dump raw LLM response to stderr if READWISE_TRIAGE_DEBUG=1
+	if os.Getenv("READWISE_TRIAGE_DEBUG") != "" {
+		fmt.Fprintf(os.Stderr, "[debug] LLM response (%d bytes): %s\n", len(content), truncate(content, 1000))
 	}
 
 	results, err := ParseTriageResponse(content)
