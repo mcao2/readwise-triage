@@ -17,18 +17,6 @@ const (
 	defaultRetryDelay = time.Second
 )
 
-// Provider presets for known LLM providers
-var providerDefaults = map[string]struct {
-	BaseURL   string
-	Model     string
-	APIFormat string
-}{
-	"perplexity": {BaseURL: "https://api.perplexity.ai/chat/completions", Model: "sonar", APIFormat: "openai"},
-	"openai":     {BaseURL: "https://api.openai.com/v1/chat/completions", Model: "gpt-4o-mini", APIFormat: "openai"},
-	"anthropic":  {BaseURL: "https://api.anthropic.com/v1/messages", Model: "claude-sonnet-4-5-20250929", APIFormat: "anthropic"},
-	"ollama":     {BaseURL: "http://localhost:11434/v1/chat/completions", Model: "llama3", APIFormat: "openai"},
-}
-
 // ChatMessage represents a message in the chat API
 type ChatMessage struct {
 	Role    string `json:"role"`
@@ -52,30 +40,8 @@ type ChatResponse struct {
 	} `json:"error"`
 }
 
-// AnthropicRequest represents the Anthropic /v1/messages request body
-type AnthropicRequest struct {
-	Model     string        `json:"model"`
-	MaxTokens int           `json:"max_tokens"`
-	System    string        `json:"system,omitempty"`
-	Messages  []ChatMessage `json:"messages"`
-}
-
-// AnthropicResponse represents the Anthropic /v1/messages response
-type AnthropicResponse struct {
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
-	Error *struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
 // LLMClient handles communication with any OpenAI-compatible chat completions API
 type LLMClient struct {
-	provider   string
-	apiFormat  string // "openai" (default) or "anthropic"
 	apiKey     string
 	model      string
 	baseURL    string
@@ -110,36 +76,11 @@ func WithLLMBaseURL(url string) LLMOption {
 	}
 }
 
-// WithLLMAPIFormat sets the wire format ("openai" or "anthropic")
-func WithLLMAPIFormat(format string) LLMOption {
-	return func(c *LLMClient) {
-		if format != "" {
-			c.apiFormat = format
-		}
-	}
-}
-
-// NewLLMClient creates a new LLM API client.
-// provider can be "perplexity", "openai", "ollama", or empty (defaults to openai).
-// apiKey can be empty for providers that don't require it (e.g., ollama).
-func NewLLMClient(provider, apiKey string, opts ...LLMOption) (*LLMClient, error) {
-	if provider == "" {
-		provider = "openai"
-	}
-
-	defaults, known := providerDefaults[provider]
-	if !known {
-		// Unknown provider: require explicit base_url via options
-		defaults.BaseURL = ""
-		defaults.Model = ""
-	}
-
+// NewLLMClient creates a new LLM API client for any OpenAI-compatible endpoint.
+// apiKey can be empty for local providers (e.g., ollama).
+func NewLLMClient(apiKey string, opts ...LLMOption) (*LLMClient, error) {
 	client := &LLMClient{
-		provider:   provider,
-		apiFormat:  defaults.APIFormat,
 		apiKey:     apiKey,
-		model:      defaults.Model,
-		baseURL:    defaults.BaseURL,
 		httpClient: &http.Client{Timeout: defaultLLMTimeout},
 	}
 
@@ -147,37 +88,18 @@ func NewLLMClient(provider, apiKey string, opts ...LLMOption) (*LLMClient, error
 		opt(client)
 	}
 
-	// Default api_format to "openai" if not set
-	if client.apiFormat == "" {
-		client.apiFormat = "openai"
+	if client.baseURL == "" {
+		return nil, fmt.Errorf("LLM base_url is required")
 	}
 
 	// Auto-append standard API endpoint path if not already present
 	baseURL := strings.TrimRight(client.baseURL, "/")
-	switch client.apiFormat {
-	case "anthropic":
-		if !strings.HasSuffix(baseURL, "/v1/messages") && !strings.Contains(baseURL, "/v1/messages/") {
-			client.baseURL = baseURL + "/v1/messages"
-		}
-	default:
-		if !strings.HasSuffix(baseURL, "/v1/chat/completions") && !strings.Contains(baseURL, "/v1/chat/completions/") {
-			client.baseURL = baseURL + "/v1/chat/completions"
-		}
+	if !strings.HasSuffix(baseURL, "/v1/chat/completions") && !strings.Contains(baseURL, "/v1/chat/completions/") {
+		client.baseURL = baseURL + "/v1/chat/completions"
 	}
 
-	// Validate: need a base URL
-	if client.baseURL == "" {
-		return nil, fmt.Errorf("LLM base_url is required for provider %q", provider)
-	}
-
-	// Validate: need a model
 	if client.model == "" {
-		return nil, fmt.Errorf("LLM model is required for provider %q", provider)
-	}
-
-	// API key is required for non-local providers
-	if client.apiKey == "" && provider != "ollama" {
-		return nil, fmt.Errorf("LLM api_key is required for provider %q", provider)
+		return nil, fmt.Errorf("LLM model is required")
 	}
 
 	return client, nil
@@ -188,29 +110,14 @@ func NewLLMClient(provider, apiKey string, opts ...LLMOption) (*LLMClient, error
 func (c *LLMClient) TriageItems(itemsJSON string) ([]Result, error) {
 	prompt := fmt.Sprintf(AutoTriagePromptTemplate, itemsJSON)
 
-	var body []byte
-	var err error
-
-	if c.apiFormat == "anthropic" {
-		reqBody := AnthropicRequest{
-			Model:     c.model,
-			MaxTokens: 4096,
-			System:    "You are a helpful assistant that analyzes reading materials and provides structured triage recommendations. Return ONLY valid JSON.",
-			Messages: []ChatMessage{
-				{Role: "user", Content: prompt},
-			},
-		}
-		body, err = json.Marshal(reqBody)
-	} else {
-		reqBody := ChatRequest{
-			Model: c.model,
-			Messages: []ChatMessage{
-				{Role: "system", Content: "You are a helpful assistant that analyzes reading materials and provides structured triage recommendations. Return ONLY valid JSON."},
-				{Role: "user", Content: prompt},
-			},
-		}
-		body, err = json.Marshal(reqBody)
+	reqBody := ChatRequest{
+		Model: c.model,
+		Messages: []ChatMessage{
+			{Role: "system", Content: "You are a helpful assistant that analyzes reading materials and provides structured triage recommendations. Return ONLY valid JSON."},
+			{Role: "user", Content: prompt},
+		},
 	}
+	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -251,10 +158,7 @@ func (c *LLMClient) doRequest(body []byte) ([]Result, error) {
 		return nil, err
 	}
 
-	if c.apiFormat == "anthropic" {
-		req.Header.Set("x-api-key", c.apiKey)
-		req.Header.Set("anthropic-version", "2023-06-01")
-	} else if c.apiKey != "" {
+	if c.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -291,29 +195,8 @@ func (c *LLMClient) doRequest(body []byte) ([]Result, error) {
 	return results, nil
 }
 
-// extractContent parses the response body and returns the text content,
-// handling both OpenAI and Anthropic response formats.
+// extractContent parses the OpenAI-compatible response body and returns the text content.
 func (c *LLMClient) extractContent(respBody []byte) (string, error) {
-	if c.apiFormat == "anthropic" {
-		var anthropicResp AnthropicResponse
-		if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
-			preview := string(respBody)
-			if len(preview) > 200 {
-				preview = preview[:200] + "..."
-			}
-			return "", &errNoRetry{err: fmt.Errorf("unexpected response (not JSON): %s", preview)}
-		}
-		if anthropicResp.Error != nil {
-			return "", fmt.Errorf("API error: %s", anthropicResp.Error.Message)
-		}
-		for _, block := range anthropicResp.Content {
-			if block.Type == "text" {
-				return block.Text, nil
-			}
-		}
-		return "", fmt.Errorf("no text content in Anthropic response")
-	}
-
 	var chatResp ChatResponse
 	if err := json.Unmarshal(respBody, &chatResp); err != nil {
 		preview := string(respBody)

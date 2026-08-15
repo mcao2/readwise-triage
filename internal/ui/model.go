@@ -503,16 +503,14 @@ func (m *Model) startTriaging() tea.Cmd {
 		}
 
 		llmCfg := m.cfg.GetLLMConfig()
-		if llmCfg.Provider == "" && llmCfg.APIKey == "" {
-			return TriageFinishedMsg{Err: fmt.Errorf("LLM not configured. Set llm.provider and llm.api_key in config.yaml or via LLM_API_KEY env var")}
+		if llmCfg.APIKey == "" && llmCfg.BaseURL == "" {
+			return TriageFinishedMsg{Err: fmt.Errorf("LLM not configured. Set llm.api_key and llm.base_url in config.yaml or via LLM_API_KEY and LLM_BASE_URL env vars")}
 		}
 
 		client, err := triage.NewLLMClient(
-			llmCfg.Provider,
 			llmCfg.APIKey,
 			triage.WithLLMBaseURL(llmCfg.BaseURL),
 			triage.WithLLMModel(llmCfg.Model),
-			triage.WithLLMAPIFormat(llmCfg.APIFormat),
 		)
 		if err != nil {
 			return TriageFinishedMsg{Err: fmt.Errorf("failed to create LLM client: %w", err)}
