@@ -281,6 +281,6 @@ func TestDetailViewMinimalItem(t *testing.T) {
 func TestUpdateTableStyles(t *testing.T) {
 	lv := NewListView(80, 24)
 	// Should not panic
-	lv.UpdateTableStyles(Themes["dracula"])
-	lv.UpdateTableStyles(Themes["nord"])
+	lv.UpdateTableStyles(DefaultTheme)
+	lv.UpdateTableStyles(DefaultTheme)
 }

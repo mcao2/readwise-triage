@@ -21,10 +21,7 @@ type Config struct {
 	ReadwiseToken string    `yaml:"readwise_token"`
 	LLM           LLMConfig `yaml:"llm"`
 	InboxDaysAgo  int       `yaml:"inbox_days_ago"`
-	FeedDaysAgo   int       `yaml:"feed_days_ago"`
-	Theme         string    `yaml:"theme"`
 	UseLLMTriage  bool      `yaml:"use_llm_triage"`
-	Location      string    `yaml:"location"`
 }
 
 // GetLLMConfig returns the effective LLM configuration.
@@ -51,7 +48,6 @@ func (c *Config) GetLLMConfig() LLMConfig {
 func Load() (*Config, error) {
 	cfg := &Config{
 		InboxDaysAgo: 7,
-		FeedDaysAgo:  7,
 	}
 
 	// Load from config file first
@@ -174,14 +170,8 @@ llm:
   base_url: ""             # endpoint URL (e.g., https://api.openai.com)
   model: ""                # model name (e.g., gpt-4o-mini)
 
-# Optional: Default number of days to fetch for inbox (default: 7)
+# Optional: Default number of days to fetch (default: 7)
 inbox_days_ago: 7
-
-# Optional: Default number of days to fetch for feed (default: 7)
-feed_days_ago: 7
-
-# Optional: Color theme (default, catppuccin, dracula, nord, gruvbox)
-theme: "default"
 
 # Optional: Use LLM auto-triage by default (default: true)
 use_llm_triage: true
@@ -199,17 +189,14 @@ func (c *Config) Save() error {
 	configPath := filepath.Join(configDir, "config.yaml")
 
 	// Load existing config to preserve fields like tokens
-	existing := &Config{InboxDaysAgo: 7, FeedDaysAgo: 7}
+	existing := &Config{InboxDaysAgo: 7}
 	if data, err := os.ReadFile(configPath); err == nil {
 		yaml.Unmarshal(data, existing)
 	}
 
 	// Update only the fields we manage (not tokens from env vars)
 	existing.InboxDaysAgo = c.InboxDaysAgo
-	existing.FeedDaysAgo = c.FeedDaysAgo
-	existing.Theme = c.Theme
 	existing.UseLLMTriage = c.UseLLMTriage
-	existing.Location = c.Location
 	// Note: We preserve existing.ReadwiseToken
 
 	data, err := yaml.Marshal(existing)

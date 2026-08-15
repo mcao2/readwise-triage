@@ -63,7 +63,6 @@ type Model struct {
 	keys   KeyMap
 
 	useLLMTriage bool
-	themeIndex   int
 	showHelp     bool
 
 	items  []Item
@@ -82,8 +81,6 @@ type Model struct {
 	triageStore *config.TriageStore
 
 	inboxLookback int
-	feedLookback  int
-	fetchLocation string
 	editingDays   bool
 	daysInput     string
 	editingTags   bool
@@ -116,40 +113,14 @@ func NewModel() *Model {
 		triageStore = nil // will be nil-checked by callers
 	}
 
-	themeNames := GetThemeNames()
-	themeIndex := -1
-	themeName := cfg.Theme
-
-	for i, name := range themeNames {
-		if name == themeName {
-			themeIndex = i
-			break
-		}
-	}
-
-	if themeIndex == -1 {
-		themeName = "default"
-		for i, name := range themeNames {
-			if name == themeName {
-				themeIndex = i
-				break
-			}
-		}
-	}
-
-	if themeIndex == -1 && len(themeNames) > 0 {
-		themeIndex = 0
-		themeName = themeNames[0]
-	}
-
 	useLLM := cfg.UseLLMTriage
-	if !useLLM && cfg.Theme == "" {
+	if !useLLM {
 		useLLM = true
 	}
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(Themes[themeName].Primary))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(DefaultTheme.Primary))
 
 	p := progress.New(
 		progress.WithDefaultGradient(),
@@ -159,9 +130,8 @@ func NewModel() *Model {
 	m := &Model{
 		state:         StateConfig,
 		useLLMTriage:  useLLM,
-		styles:        NewStyles(Themes[themeName]),
+		styles:        NewStyles(DefaultTheme),
 		keys:          DefaultKeyMap(),
-		themeIndex:    themeIndex,
 		items:         []Item{},
 		cursor:        0,
 		spinner:       s,
@@ -169,61 +139,24 @@ func NewModel() *Model {
 		cfg:           cfg,
 		triageStore:   triageStore,
 		inboxLookback: cfg.InboxDaysAgo,
-		feedLookback:  cfg.FeedDaysAgo,
-		fetchLocation: "new",
 	}
 
-	// Restore last-used location from config
-	if cfg.Location == "feed" {
-		m.fetchLocation = "feed"
-	}
 	m.listView = NewListView(80, 24)
-	m.listView.UpdateTableStyles(Themes[themeName])
+	m.listView.UpdateTableStyles(DefaultTheme)
 	return m
 }
 
 func (m *Model) activeLookback() int {
-	if m.fetchLocation == "feed" {
-		return m.feedLookback
-	}
 	return m.inboxLookback
 }
 
 func (m *Model) activeLookbackPtr() *int {
-	if m.fetchLocation == "feed" {
-		return &m.feedLookback
-	}
 	return &m.inboxLookback
 }
 
 func (m *Model) saveLookback() {
 	if m.cfg != nil {
-		if m.fetchLocation == "feed" {
-			m.cfg.FeedDaysAgo = m.feedLookback
-		} else {
-			m.cfg.InboxDaysAgo = m.inboxLookback
-		}
-		_ = m.cfg.Save()
-	}
-}
-
-func (m *Model) saveLocation() {
-	if m.cfg != nil {
-		m.cfg.Location = m.fetchLocation
-		_ = m.cfg.Save()
-	}
-}
-
-func (m *Model) cycleTheme() {
-	themeNames := GetThemeNames()
-	m.themeIndex = (m.themeIndex + 1) % len(themeNames)
-	newTheme := themeNames[m.themeIndex]
-	m.styles = NewStyles(Themes[newTheme])
-	m.listView.UpdateTableStyles(Themes[newTheme])
-	m.spinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(Themes[newTheme].Primary))
-
-	if m.cfg != nil {
-		m.cfg.Theme = newTheme
+		m.cfg.InboxDaysAgo = m.inboxLookback
 		_ = m.cfg.Save()
 	}
 }
@@ -266,11 +199,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.items = msg.Items
 		m.applySavedTriages()
 		m.listView.SetItems(m.items)
-		locationLabel := "inbox"
-		if m.fetchLocation == "feed" {
-			locationLabel = "feed"
-		}
-		m.statusMessage = fmt.Sprintf("Loaded %d %s items from the last %d days", len(m.items), locationLabel, m.activeLookback())
+		m.statusMessage = fmt.Sprintf("Loaded %d items from the last %d days", len(m.items), m.activeLookback())
 		m.state = StateReviewing
 
 	case UpdateFinishedMsg:
@@ -412,15 +341,6 @@ func (m *Model) handleConfigKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyMatches(msg, m.keys.Enter):
 		return m, m.startFetching()
-	case keyMatches(msg, m.keys.CycleTheme):
-		m.cycleTheme()
-	case keyMatches(msg, m.keys.Left), keyMatches(msg, m.keys.Right):
-		if m.fetchLocation == "new" {
-			m.fetchLocation = "feed"
-		} else {
-			m.fetchLocation = "new"
-		}
-		m.saveLocation()
 	case keyMatches(msg, m.keys.Up):
 		*m.activeLookbackPtr() += 7
 		m.saveLookback()
@@ -459,7 +379,7 @@ func (m *Model) startFetching() tea.Cmd {
 
 		opts := readwise.FetchOptions{
 			DaysAgo:  m.activeLookback(),
-			Location: m.fetchLocation,
+			Location: "new",
 		}
 		items, err := client.GetInboxItems(opts)
 		if err != nil {
@@ -557,9 +477,7 @@ func (m *Model) startUpdating() tea.Cmd {
 
 			switch item.Action {
 			case "read_now":
-				if m.fetchLocation == "feed" {
-					update.Location = "new"
-				}
+				// stays in inbox
 			case "later":
 				update.Location = "later"
 			case "archive":
@@ -898,22 +816,8 @@ func (m *Model) configView() string {
 	// Styled title
 	title := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(m.styles.theme.Primary)).
+		Foreground(lipgloss.Color(DefaultTheme.Primary)).
 		Render("  Readwise Triage")
-
-	// Theme indicator
-	themeName := m.cfg.Theme
-	if themeName == "" {
-		themeName = "default"
-	}
-	themeLine := fmt.Sprintf("  🎨  %s", m.styles.Normal.Render("Theme: "+themeName))
-
-	// Location indicator
-	locationLabel := "Inbox"
-	if m.fetchLocation == "feed" {
-		locationLabel = "Feed"
-	}
-	locationLine := fmt.Sprintf("  📂  %s", m.styles.Normal.Render("Location: "+locationLabel))
 
 	// Days lookback
 	var daysLine string
@@ -927,8 +831,6 @@ func (m *Model) configView() string {
 		"",
 		title,
 		"",
-		themeLine,
-		locationLine,
 		daysLine,
 		"",
 	)
@@ -964,9 +866,6 @@ func (m *Model) fetchingView() string {
 	status := fmt.Sprintf("%s Loading from Readwise...", spinnerView)
 
 	fetchTitle := "Fetching Inbox Items"
-	if m.fetchLocation == "feed" {
-		fetchTitle = "Fetching Feed Items"
-	}
 
 	content := m.styles.Border.Render(
 		lipgloss.JoinVertical(lipgloss.Center,
@@ -999,11 +898,7 @@ func (m *Model) triagingView() string {
 
 func (m *Model) reviewingView() string {
 	// Header bar
-	locationTag := "[Inbox]"
-	if m.fetchLocation == "feed" {
-		locationTag = "[Feed]"
-	}
-	headerLeft := m.styles.HelpKey.Render("Readwise Triage " + locationTag)
+	headerLeft := m.styles.HelpKey.Render("Readwise Triage")
 	countText := m.styles.HelpDesc.Render(fmt.Sprintf("%d/%d", m.cursor+1, len(m.items)))
 	if m.batchMode {
 		selectedCount := len(m.listView.GetSelected())

@@ -6,8 +6,6 @@ import "github.com/charmbracelet/bubbles/key"
 type KeyMap struct {
 	Up         key.Binding
 	Down       key.Binding
-	Left       key.Binding
-	Right      key.Binding
 	Enter      key.Binding
 	Back       key.Binding
 	Quit       key.Binding
@@ -18,7 +16,6 @@ type KeyMap struct {
 	FetchMore  key.Binding
 	Delete     key.Binding
 	ToggleMode key.Binding
-	CycleTheme key.Binding
 	Refresh    key.Binding
 	AutoTriage key.Binding
 }
@@ -33,14 +30,6 @@ func DefaultKeyMap() KeyMap {
 		Down: key.NewBinding(
 			key.WithKeys("down", "j"),
 			key.WithHelp("↓/j", "down"),
-		),
-		Left: key.NewBinding(
-			key.WithKeys("left", "h"),
-			key.WithHelp("←/h", "left"),
-		),
-		Right: key.NewBinding(
-			key.WithKeys("right", "l"),
-			key.WithHelp("→/l", "right"),
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
@@ -76,15 +65,11 @@ func DefaultKeyMap() KeyMap {
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("d"),
-			key.WithHelp("d", "delete"),
+			key.WithHelp("d", "archive"),
 		),
 		ToggleMode: key.NewBinding(
 			key.WithKeys("m"),
 			key.WithHelp("m", "toggle mode"),
-		),
-		CycleTheme: key.NewBinding(
-			key.WithKeys("t"),
-			key.WithHelp("t", "cycle theme"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("R"),
@@ -100,8 +85,8 @@ func DefaultKeyMap() KeyMap {
 // Keys returns the keys as a slice for matching
 func (k KeyMap) Keys() []key.Binding {
 	return []key.Binding{
-		k.Up, k.Down, k.Left, k.Right,
+		k.Up, k.Down,
 		k.Enter, k.Back, k.Quit, k.Help, k.Select, k.Open, k.Update, k.FetchMore,
-		k.Delete, k.ToggleMode, k.CycleTheme, k.Refresh, k.AutoTriage,
+		k.Delete, k.ToggleMode, k.Refresh, k.AutoTriage,
 	}
 }

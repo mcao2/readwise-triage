@@ -176,7 +176,6 @@ func TestLoadConfig(t *testing.T) {
 	cfgData := Config{
 		ReadwiseToken: "test-token",
 		InboxDaysAgo:  14,
-		Theme:         "dracula",
 		UseLLMTriage:  true,
 	}
 	data, _ := yaml.Marshal(cfgData)
@@ -196,9 +195,6 @@ func TestLoadConfig(t *testing.T) {
 	}
 	if cfg.InboxDaysAgo != 14 {
 		t.Errorf("expected days 14, got %d", cfg.InboxDaysAgo)
-	}
-	if cfg.Theme != "dracula" {
-		t.Errorf("expected theme 'dracula', got %q", cfg.Theme)
 	}
 }
 
@@ -270,7 +266,6 @@ func TestConfigSave(t *testing.T) {
 
 	cfg := &Config{
 		InboxDaysAgo: 14,
-		Theme:        "nord",
 		UseLLMTriage: true,
 	}
 
@@ -292,9 +287,6 @@ func TestConfigSave(t *testing.T) {
 	if loaded.InboxDaysAgo != 14 {
 		t.Errorf("expected days 14, got %d", loaded.InboxDaysAgo)
 	}
-	if loaded.Theme != "nord" {
-		t.Errorf("expected theme 'nord', got %q", loaded.Theme)
-	}
 	if !loaded.UseLLMTriage {
 		t.Error("expected UseLLMTriage true")
 	}
@@ -309,7 +301,6 @@ func TestConfigSavePreservesTokens(t *testing.T) {
 	initial := Config{
 		ReadwiseToken: "my-secret-token",
 		InboxDaysAgo:  7,
-		Theme:         "default",
 	}
 	data, _ := yaml.Marshal(initial)
 	os.WriteFile(configPath, data, 0600)
@@ -317,7 +308,6 @@ func TestConfigSavePreservesTokens(t *testing.T) {
 	// Save with different theme (should preserve token)
 	cfg := &Config{
 		InboxDaysAgo: 14,
-		Theme:        "catppuccin",
 		UseLLMTriage: false,
 	}
 	if err := cfg.Save(); err != nil {
@@ -331,9 +321,6 @@ func TestConfigSavePreservesTokens(t *testing.T) {
 
 	if loaded.ReadwiseToken != "my-secret-token" {
 		t.Errorf("expected token preserved, got %q", loaded.ReadwiseToken)
-	}
-	if loaded.Theme != "catppuccin" {
-		t.Errorf("expected theme 'catppuccin', got %q", loaded.Theme)
 	}
 }
 

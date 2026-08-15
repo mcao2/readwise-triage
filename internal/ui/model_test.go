@@ -181,20 +181,6 @@ func TestApplyActions(t *testing.T) {
 
 }
 
-func TestThemeCycling(t *testing.T) {
-	m := NewModel()
-	initialTheme := m.cfg.Theme
-	if initialTheme == "" {
-		initialTheme = "default"
-	}
-
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	newTheme := m.cfg.Theme
-	if newTheme == initialTheme {
-		t.Errorf("expected theme to change, but it's still %s", initialTheme)
-	}
-}
-
 func TestHandleAdditionalKeys(t *testing.T) {
 	m := NewModel()
 
@@ -716,9 +702,9 @@ func TestKeyMapKeys(t *testing.T) {
 	if len(keys) == 0 {
 		t.Error("expected non-empty key bindings")
 	}
-	// Should have 17 bindings
-	if len(keys) != 17 {
-		t.Errorf("expected 17 key bindings, got %d", len(keys))
+	// Should have 14 bindings
+	if len(keys) != 14 {
+		t.Errorf("expected 14 key bindings, got %d", len(keys))
 	}
 }
 
@@ -1238,169 +1224,6 @@ func TestNavigationAfterMultipleUpdateCycles(t *testing.T) {
 	}
 }
 
-func TestConfigLocationToggle(t *testing.T) {
-	m := NewModel()
-	m.state = StateConfig
-
-	if m.fetchLocation != "new" {
-		t.Fatalf("expected default fetchLocation 'new', got %q", m.fetchLocation)
-	}
-
-	// Press Right to toggle to feed
-	m.Update(tea.KeyMsg{Type: tea.KeyRight})
-	if m.fetchLocation != "feed" {
-		t.Errorf("expected fetchLocation 'feed' after Right, got %q", m.fetchLocation)
-	}
-
-	// Press Left to toggle back to new
-	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	if m.fetchLocation != "new" {
-		t.Errorf("expected fetchLocation 'new' after Left, got %q", m.fetchLocation)
-	}
-
-	// Press 'h' (Left alias) to toggle to feed
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
-	if m.fetchLocation != "feed" {
-		t.Errorf("expected fetchLocation 'feed' after 'h', got %q", m.fetchLocation)
-	}
-
-	// Press 'l' (Right alias) to toggle back to new
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
-	if m.fetchLocation != "new" {
-		t.Errorf("expected fetchLocation 'new' after 'l', got %q", m.fetchLocation)
-	}
-}
-
-func TestConfigViewRendersLocation(t *testing.T) {
-	m := NewModel()
-	m.state = StateConfig
-
-	view := m.View()
-	if !strings.Contains(view, "Location") {
-		t.Error("expected config view to contain 'Location'")
-	}
-	if !strings.Contains(view, "Inbox") {
-		t.Error("expected config view to show 'Inbox' for default location")
-	}
-
-	m.fetchLocation = "feed"
-	view = m.View()
-	if !strings.Contains(view, "Feed") {
-		t.Error("expected config view to show 'Feed' after toggle")
-	}
-}
-
-func TestReviewingHeaderShowsLocationTag(t *testing.T) {
-	m := NewModel()
-	m.state = StateReviewing
-	m.width = 100
-	m.height = 40
-	m.items = []Item{{ID: "1", Title: "Test"}}
-	m.listView.SetItems(m.items)
-
-	// Default: Inbox
-	view := m.View()
-	if !strings.Contains(view, "[Inbox]") {
-		t.Error("expected reviewing header to contain '[Inbox]'")
-	}
-
-	// Feed
-	m.fetchLocation = "feed"
-	view = m.View()
-	if !strings.Contains(view, "[Feed]") {
-		t.Error("expected reviewing header to contain '[Feed]'")
-	}
-}
-
-func TestFeedUpdatePromotesToInbox(t *testing.T) {
-	m := NewModel()
-	m.cfg = &config.Config{ReadwiseToken: "test-token"}
-	m.fetchLocation = "feed"
-	m.items = []Item{
-		{ID: "1", Title: "Read Now Item", Action: "read_now"},
-		{ID: "3", Title: "Later Item", Action: "later"},
-		{ID: "4", Title: "Archive Item", Action: "archive"},
-	}
-	m.listView.SetItems(m.items)
-	m.state = StateConfirming
-
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
-	if cmd == nil {
-		t.Fatal("expected command after confirming")
-	}
-	if m.state != StateUpdating {
-		t.Errorf("expected StateUpdating, got %v", m.state)
-	}
-}
-
-func TestFetchingViewFeedTitle(t *testing.T) {
-	m := NewModel()
-	m.state = StateFetching
-	m.fetchLocation = "feed"
-	view := m.View()
-	if !strings.Contains(view, "Fetching Feed Items") {
-		t.Error("expected fetching view to show 'Fetching Feed Items'")
-	}
-
-	m.fetchLocation = "new"
-	view = m.View()
-	if !strings.Contains(view, "Fetching Inbox Items") {
-		t.Error("expected fetching view to show 'Fetching Inbox Items'")
-	}
-}
-
-func TestItemsLoadedMsgFeedStatus(t *testing.T) {
-	m := NewModel()
-	m.fetchLocation = "feed"
-	m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Test"}}})
-	if !strings.Contains(m.statusMessage, "feed") {
-		t.Errorf("expected status message to contain 'feed', got %q", m.statusMessage)
-	}
-
-	m.fetchLocation = "new"
-	m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Test"}}})
-	if !strings.Contains(m.statusMessage, "inbox") {
-		t.Errorf("expected status message to contain 'inbox', got %q", m.statusMessage)
-	}
-}
-
-func TestIndependentLookbackPerLocation(t *testing.T) {
-	m := NewModel()
-	m.items = []Item{{ID: "1", Title: "Item 1"}}
-	m.listView.SetItems(m.items)
-	m.state = StateReviewing
-
-	initialInbox := m.inboxLookback
-	initialFeed := m.feedLookback
-
-	// Fetch more in inbox mode — should bump inboxLookback
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
-	if m.inboxLookback != initialInbox+7 {
-		t.Errorf("expected inbox lookback %d, got %d", initialInbox+7, m.inboxLookback)
-	}
-
-	// Switch to feed and reload items
-	m.fetchLocation = "feed"
-	m.Update(ItemsLoadedMsg{Items: m.items})
-	m.state = StateReviewing
-
-	// Feed lookback should still be at its initial value
-	if m.feedLookback != initialFeed {
-		t.Errorf("expected feed lookback %d, got %d", initialFeed, m.feedLookback)
-	}
-
-	// Fetch more in feed mode — should bump feedLookback only
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("f")})
-	if m.feedLookback != initialFeed+7 {
-		t.Errorf("expected feed lookback %d, got %d", initialFeed+7, m.feedLookback)
-	}
-
-	// Inbox lookback should be unchanged from before
-	if m.inboxLookback != initialInbox+7 {
-		t.Errorf("expected inbox lookback still %d, got %d", initialInbox+7, m.inboxLookback)
-	}
-}
-
 func TestConfigDaysAdjust(t *testing.T) {
 	m := NewModel()
 	m.state = StateConfig
@@ -1910,38 +1733,6 @@ func TestWordBoundaryHelpers(t *testing.T) {
 	}
 	if got := nextWordBoundary(runes, 14); got != 14 {
 		t.Errorf("nextWordBoundary(14) = %d, want 14", got)
-	}
-}
-
-func TestLocationPersistence(t *testing.T) {
-	// Toggle to feed and verify it's saved to config
-	m := NewModel()
-	m.state = StateConfig
-
-	m.Update(tea.KeyMsg{Type: tea.KeyRight}) // toggle to feed
-	if m.fetchLocation != "feed" {
-		t.Fatalf("expected fetchLocation 'feed', got %q", m.fetchLocation)
-	}
-	if m.cfg.Location != "feed" {
-		t.Errorf("expected cfg.Location 'feed', got %q", m.cfg.Location)
-	}
-
-	// New model should restore the saved location
-	m2 := NewModel()
-	if m2.fetchLocation != "feed" {
-		t.Errorf("expected new model to restore fetchLocation 'feed', got %q", m2.fetchLocation)
-	}
-
-	// Toggle back to inbox and verify
-	m2.state = StateConfig
-	m2.Update(tea.KeyMsg{Type: tea.KeyRight}) // toggle back to new
-	if m2.fetchLocation != "new" {
-		t.Fatalf("expected fetchLocation 'new', got %q", m2.fetchLocation)
-	}
-
-	m3 := NewModel()
-	if m3.fetchLocation != "new" {
-		t.Errorf("expected new model to restore fetchLocation 'new', got %q", m3.fetchLocation)
 	}
 }
 
