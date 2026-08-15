@@ -76,8 +76,6 @@ type Model struct {
 	triageStore *config.TriageStore
 
 	inboxLookback int
-	editingDays   bool
-	daysInput     string
 	editingTags   bool
 	tagsInput     string
 	tagsCursor    int
