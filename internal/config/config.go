@@ -171,8 +171,6 @@ llm:
 
 # Optional: Default number of days to fetch (default: 7)
 inbox_days_ago: 7
-
-# Optional: Use LLM auto-triage by default (default: true)
 `
 
 	return os.WriteFile(configPath, []byte(example), 0600)

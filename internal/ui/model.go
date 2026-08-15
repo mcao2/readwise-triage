@@ -149,7 +149,7 @@ func (m *Model) saveLookback() {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return m.spinner.Tick
+	return tea.Batch(m.spinner.Tick, m.startFetching())
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -548,7 +548,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case keyMatches(msg, m.keys.Up):
-		// Use SetCursor directly to avoid the table's broken YOffset logic in MoveUp/MoveDown
+		// SetCursor directly for clean cursor management
 		m.listView.MoveCursor(-1)
 		m.cursor = m.listView.Cursor()
 		return m, nil
