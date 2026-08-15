@@ -500,7 +500,7 @@ func TestUpdateDocumentWithTags(t *testing.T) {
 
 	err := client.UpdateDocument(UpdateRequest{
 		DocumentID: "doc1",
-		Tags:       []string{"read_now", "priority:high", "golang"},
+		Tags:       []string{"read_now", "golang"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -520,8 +520,8 @@ func TestUpdateDocumentWithTags(t *testing.T) {
 	if !ok {
 		t.Fatal("expected tags in payload")
 	}
-	if len(tags) != 3 {
-		t.Errorf("expected 3 tags, got %d", len(tags))
+	if len(tags) != 2 {
+		t.Errorf("expected 2 tags, got %d", len(tags))
 	}
 }
 

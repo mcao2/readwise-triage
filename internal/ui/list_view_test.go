@@ -11,8 +11,8 @@ import (
 func TestListView_SetItems(t *testing.T) {
 	lv := NewListView(80, 20)
 	items := []Item{
-		{ID: "1", Title: "Item 1", Action: "read_now", Priority: "high"},
-		{ID: "2", Title: "Item 2", Action: "later", Priority: "medium"},
+		{ID: "1", Title: "Item 1", Action: "read_now"},
+		{ID: "2", Title: "Item 2", Action: "later"},
 	}
 	lv.SetItems(items)
 
@@ -88,16 +88,13 @@ func TestGetActionText(t *testing.T) {
 	if !strings.Contains(getActionText("delete"), "Delete") {
 		t.Error("delete should contain 'Delete'")
 	}
-	if !strings.Contains(getActionText("needs_review"), "Review") {
-		t.Error("needs_review should contain 'Review'")
-	}
 	if !strings.Contains(getActionText(""), "New") {
 		t.Error("empty action should contain 'New'")
 	}
 }
 
 func TestActionTextAlignment(t *testing.T) {
-	actions := []string{"read_now", "later", "archive", "delete", "needs_review", ""}
+	actions := []string{"read_now", "later", "archive", "delete", ""}
 
 	// All action texts should fit within 10 chars (column width)
 	for _, action := range actions {
@@ -153,7 +150,6 @@ func TestListView_HelpView(t *testing.T) {
 
 func TestListView_View(t *testing.T) {
 	lv := NewListView(80, 24)
-	lv.SetItems([]Item{{ID: "1", Title: "Test", Action: "read_now", Priority: "high"}})
 	view := lv.View()
 	if view == "" {
 		t.Error("expected non-empty view")
@@ -196,26 +192,6 @@ func TestListView_CursorBoundary(t *testing.T) {
 	lv.MoveCursor(5)
 	if lv.Cursor() != 0 {
 		t.Errorf("expected cursor 0 after large move, got %d", lv.Cursor())
-	}
-}
-
-func TestGetPriorityText(t *testing.T) {
-	tests := []struct {
-		priority string
-		contains string
-	}{
-		{"high", "High"},
-		{"medium", "Med"},
-		{"low", "Low"},
-		{"", "—"},
-		{"unknown", "—"},
-	}
-
-	for _, tt := range tests {
-		text := getPriorityText(tt.priority)
-		if !strings.Contains(text, tt.contains) {
-			t.Errorf("getPriorityText(%q) = %q, expected to contain %q", tt.priority, text, tt.contains)
-		}
 	}
 }
 

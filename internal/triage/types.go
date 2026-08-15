@@ -12,11 +12,10 @@ type Result struct {
 	MetadataEnhancement MetadataEnhancement `json:"metadata_enhancement"`
 }
 
-// TriageDecision represents the action and priority for an item
+// TriageDecision represents the action for an item
 type TriageDecision struct {
-	Action   string `json:"action"`   // delete|archive|later|read_now
-	Priority string `json:"priority"` // high|medium|low
-	Reason   string `json:"reason"`
+	Action string `json:"action"` // delete|archive|later|read_now
+	Reason string `json:"reason"`
 }
 
 // ContentAnalysis represents the analysis of the content

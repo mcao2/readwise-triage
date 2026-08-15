@@ -16,7 +16,6 @@ import (
 // TriageEntry represents a single triaged item.
 type TriageEntry struct {
 	Action    string
-	Priority  string
 	Tags      []string
 	Source    string
 	TriagedAt string
@@ -58,7 +57,6 @@ func LoadTriageStore() (*TriageStore, error) {
 	createSQL := `CREATE TABLE IF NOT EXISTS triage_entries (
 		id         TEXT PRIMARY KEY,
 		action     TEXT NOT NULL,
-		priority   TEXT NOT NULL DEFAULT '',
 		tags       TEXT,
 		source     TEXT NOT NULL,
 		triaged_at TEXT NOT NULL,
@@ -73,7 +71,6 @@ func LoadTriageStore() (*TriageStore, error) {
 
 	// Auto-migrate from legacy JSON file.
 	if err := store.migrateFromJSON(); err != nil {
-		// Migration failure is non-fatal — log-style: we just skip.
 		_ = err
 	}
 
@@ -89,7 +86,7 @@ func (s *TriageStore) Close() error {
 }
 
 // SetItem upserts a triage entry. report may be nil for manual entries.
-func (s *TriageStore) SetItem(id, action, priority, source string, tags []string, report *triage.Result) {
+func (s *TriageStore) SetItem(id, action, source string, tags []string, report *triage.Result) {
 	var tagsJSON *string
 	if len(tags) > 0 {
 		b, _ := json.Marshal(tags)
@@ -106,27 +103,26 @@ func (s *TriageStore) SetItem(id, action, priority, source string, tags []string
 
 	now := time.Now().Format(time.RFC3339)
 
-	_, _ = s.db.Exec(`INSERT INTO triage_entries (id, action, priority, tags, source, triaged_at, report)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+	_, _ = s.db.Exec(`INSERT INTO triage_entries (id, action, tags, source, triaged_at, report)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			action=excluded.action,
-			priority=excluded.priority,
 			tags=excluded.tags,
 			source=excluded.source,
 			triaged_at=excluded.triaged_at,
 			report=excluded.report`,
-		id, action, priority, tagsJSON, source, now, reportJSON)
+		id, action, tagsJSON, source, now, reportJSON)
 }
 
 // GetItem retrieves a triage entry by document ID.
 func (s *TriageStore) GetItem(id string) (TriageEntry, bool) {
 	row := s.db.QueryRow(
-		`SELECT action, priority, tags, source, triaged_at, report FROM triage_entries WHERE id = ?`, id)
+		`SELECT action, tags, source, triaged_at, report FROM triage_entries WHERE id = ?`, id)
 
 	var entry TriageEntry
 	var tagsJSON, reportJSON sql.NullString
 
-	if err := row.Scan(&entry.Action, &entry.Priority, &tagsJSON, &entry.Source, &entry.TriagedAt, &reportJSON); err != nil {
+	if err := row.Scan(&entry.Action, &tagsJSON, &entry.Source, &entry.TriagedAt, &reportJSON); err != nil {
 		return TriageEntry{}, false
 	}
 
@@ -175,7 +171,6 @@ type legacyTriageStore struct {
 
 type legacyEntry struct {
 	Action    string   `json:"action"`
-	Priority  string   `json:"priority"`
 	Tags      []string `json:"tags,omitempty"`
 	TriagedAt string   `json:"triaged_at"`
 	Source    string   `json:"source"`
@@ -207,8 +202,8 @@ func (s *TriageStore) migrateFromJSON() error {
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO triage_entries (id, action, priority, tags, source, triaged_at, report)
-		VALUES (?, ?, ?, ?, ?, ?, NULL)`)
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO triage_entries (id, action, tags, source, triaged_at, report)
+		VALUES (?, ?, ?, ?, ?, NULL)`)
 	if err != nil {
 		return fmt.Errorf("prepare migration stmt: %w", err)
 	}
@@ -229,7 +224,7 @@ func (s *TriageStore) migrateFromJSON() error {
 		if triagedAt == "" {
 			triagedAt = time.Now().Format(time.RFC3339)
 		}
-		if _, err := stmt.Exec(id, entry.Action, entry.Priority, tagsJSON, source, triagedAt); err != nil {
+		if _, err := stmt.Exec(id, entry.Action, tagsJSON, source, triagedAt); err != nil {
 			return fmt.Errorf("migrate entry %s: %w", id, err)
 		}
 	}

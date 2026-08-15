@@ -95,9 +95,8 @@ func TestLLMClientTriageItems(t *testing.T) {
 			Title: "Test Article",
 			URL:   "https://example.com",
 			TriageDecision: TriageDecision{
-				Action:   "read_now",
-				Priority: "high",
-				Reason:   "Important",
+				Action: "read_now",
+				Reason: "Important",
 			},
 		},
 	}
@@ -197,9 +196,8 @@ func TestLLMClientTriageItemsRetry(t *testing.T) {
 			Title: "Test",
 			URL:   "https://example.com",
 			TriageDecision: TriageDecision{
-				Action:   "later",
-				Priority: "low",
-				Reason:   "Not urgent",
+				Action: "later",
+				Reason: "Not urgent",
 			},
 		},
 	}
@@ -247,9 +245,8 @@ func TestLLMClientNoAuthWhenNoKey(t *testing.T) {
 				Title: "Test",
 				URL:   "https://example.com",
 				TriageDecision: TriageDecision{
-					Action:   "archive",
-					Priority: "low",
-					Reason:   "Not relevant",
+					Action: "archive",
+					Reason: "Not relevant",
 				},
 			},
 		}

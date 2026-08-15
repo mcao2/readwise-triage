@@ -130,13 +130,12 @@ func (lv *ListView) updateRows() {
 		}
 
 		actionText := runewidth.FillRight(getActionText(item.Action), 10)
-		priorityText := runewidth.FillRight(getPriorityText(item.Priority), 8)
 		category := Truncate(item.Category, 10)
 		info := formatInfo(item.ReadingTime, item.WordCount)
 		tags := Truncate(strings.Join(item.Tags, ", "), 20)
 		title := Truncate(item.Title, lv.width-80)
 
-		rows[i] = table.Row{sel, actionText, priorityText, category, info, tags, title}
+		rows[i] = table.Row{sel, actionText, category, info, tags, title}
 	}
 	lv.table.SetRows(rows)
 }
@@ -171,23 +170,8 @@ func getActionText(action string) string {
 		return "📁 Archive"
 	case "delete":
 		return "❌ Delete"
-	case "needs_review":
-		return "👁  Review"
 	default:
 		return "· New"
-	}
-}
-
-func getPriorityText(priority string) string {
-	switch priority {
-	case "high":
-		return "🔴 High"
-	case "medium":
-		return "🟡 Med"
-	case "low":
-		return "🟢 Low"
-	default:
-		return "  —"
 	}
 }
 

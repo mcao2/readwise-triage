@@ -167,11 +167,6 @@ func TestApplyActions(t *testing.T) {
 		t.Errorf("expected action 'read_now', got %s", m.items[0].Action)
 	}
 
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
-	if m.items[0].Priority != "high" {
-		t.Errorf("expected priority 'high', got %s", m.items[0].Priority)
-	}
-
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" ")})
@@ -184,13 +179,6 @@ func TestApplyActions(t *testing.T) {
 		t.Errorf("expected item 1 action 'later', got %s", m.items[1].Action)
 	}
 
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
-	if m.items[0].Priority != "medium" {
-		t.Errorf("expected item 0 priority 'medium', got %s", m.items[0].Priority)
-	}
-	if m.items[1].Priority != "medium" {
-		t.Errorf("expected item 1 priority 'medium', got %s", m.items[1].Priority)
-	}
 }
 
 func TestThemeCycling(t *testing.T) {
@@ -335,50 +323,6 @@ func TestRefreshKey(t *testing.T) {
 	}
 }
 
-func TestNeedsReviewAction(t *testing.T) {
-	m := NewModel()
-	items := []Item{
-		{ID: "1", Title: "Item 1"},
-	}
-	m.Update(ItemsLoadedMsg{Items: items})
-	m.state = StateReviewing
-	m.listView.SetCursor(0)
-
-	// Apply needs_review action
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
-
-	if m.items[0].Action != "needs_review" {
-		t.Errorf("expected action 'needs_review', got %s", m.items[0].Action)
-	}
-}
-
-func TestBatchNeedsReviewAction(t *testing.T) {
-	m := NewModel()
-	items := []Item{
-		{ID: "1", Title: "Item 1"},
-		{ID: "2", Title: "Item 2"},
-	}
-	m.Update(ItemsLoadedMsg{Items: items})
-	m.state = StateReviewing
-
-	// Select both items
-	m.listView.SetCursor(0)
-	m.listView.ToggleSelection()
-	m.listView.SetCursor(1)
-	m.listView.ToggleSelection()
-	m.batchMode = true
-
-	// Apply needs_review to batch
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
-
-	if m.items[0].Action != "needs_review" {
-		t.Errorf("expected item 0 action 'needs_review', got %s", m.items[0].Action)
-	}
-	if m.items[1].Action != "needs_review" {
-		t.Errorf("expected item 1 action 'needs_review', got %s", m.items[1].Action)
-	}
-}
-
 func TestUpdateRequestWithTags(t *testing.T) {
 	m := NewModel()
 	m.cfg = &config.Config{ReadwiseToken: "test-token"}
@@ -389,14 +333,13 @@ func TestUpdateRequestWithTags(t *testing.T) {
 			ID:           "1",
 			Title:        "Item 1",
 			Action:       "read_now",
-			Priority:     "high",
 			Tags:         []string{"golang", "tutorial"},
 			OriginalTags: []string{"inbox", "rss"},
 		},
 		{
 			ID:           "2",
 			Title:        "Item 2",
-			Action:       "needs_review",
+			Action:       "later",
 			Tags:         []string{"paywalled"},
 			OriginalTags: []string{"saved"},
 		},
@@ -415,16 +358,10 @@ func TestUpdateRequestWithTags(t *testing.T) {
 			switch item.Action {
 			case "read_now":
 				// no action-based tag
-			case "needs_review":
-				// no action-based tag
 			}
 
 			// Preserve original tags
 			update.Tags = append(update.Tags, item.OriginalTags...)
-
-			if item.Priority != "" {
-				update.Tags = append(update.Tags, "priority:"+item.Priority)
-			}
 
 			if len(item.Tags) > 0 {
 				update.Tags = append(update.Tags, item.Tags...)
@@ -438,8 +375,8 @@ func TestUpdateRequestWithTags(t *testing.T) {
 		t.Fatalf("expected 2 updates, got %d", len(updates))
 	}
 
-	// Check first item: original tags + priority:high + golang + tutorial
-	expectedTags1 := []string{"inbox", "rss", "priority:high", "golang", "tutorial"}
+	// Check first item: original tags + golang + tutorial
+	expectedTags1 := []string{"inbox", "rss", "golang", "tutorial"}
 	if len(updates[0].Tags) != len(expectedTags1) {
 		t.Errorf("expected %d tags for item 1, got %d", len(expectedTags1), len(updates[0].Tags))
 	}
@@ -470,7 +407,6 @@ func TestAllSingleItemActions(t *testing.T) {
 		{"l", "later"},
 		{"a", "archive"},
 		{"d", "delete"},
-		{"n", "needs_review"},
 	}
 
 	for _, tt := range tests {
@@ -487,30 +423,6 @@ func TestAllSingleItemActions(t *testing.T) {
 	}
 }
 
-func TestAllSingleItemPriorities(t *testing.T) {
-	tests := []struct {
-		key      string
-		priority string
-	}{
-		{"1", "high"},
-		{"2", "medium"},
-		{"3", "low"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.key+"="+tt.priority, func(t *testing.T) {
-			m := NewModel()
-			m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Test"}}})
-			m.state = StateReviewing
-
-			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
-			if m.items[0].Priority != tt.priority {
-				t.Errorf("expected priority %q, got %q", tt.priority, m.items[0].Priority)
-			}
-		})
-	}
-}
-
 func TestAllBatchActions(t *testing.T) {
 	tests := []struct {
 		key    string
@@ -520,7 +432,6 @@ func TestAllBatchActions(t *testing.T) {
 		{"l", "later"},
 		{"a", "archive"},
 		{"d", "delete"},
-		{"n", "needs_review"},
 	}
 
 	for _, tt := range tests {
@@ -544,42 +455,6 @@ func TestAllBatchActions(t *testing.T) {
 			for i, item := range m.items {
 				if item.Action != tt.action {
 					t.Errorf("item %d: expected action %q, got %q", i, tt.action, item.Action)
-				}
-			}
-		})
-	}
-}
-
-func TestAllBatchPriorities(t *testing.T) {
-	tests := []struct {
-		key      string
-		priority string
-	}{
-		{"1", "high"},
-		{"2", "medium"},
-		{"3", "low"},
-	}
-
-	for _, tt := range tests {
-		t.Run("batch_"+tt.key+"="+tt.priority, func(t *testing.T) {
-			m := NewModel()
-			items := []Item{
-				{ID: "1", Title: "Item 1"},
-				{ID: "2", Title: "Item 2"},
-			}
-			m.Update(ItemsLoadedMsg{Items: items})
-			m.state = StateReviewing
-
-			m.listView.SetCursor(0)
-			m.listView.ToggleSelection()
-			m.listView.SetCursor(1)
-			m.listView.ToggleSelection()
-			m.batchMode = true
-
-			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
-			for i, item := range m.items {
-				if item.Priority != tt.priority {
-					t.Errorf("item %d: expected priority %q, got %q", i, tt.priority, item.Priority)
 				}
 			}
 		})
@@ -678,7 +553,6 @@ func TestConfirmingToUpdatingFlow(t *testing.T) {
 	m := NewModel()
 	m.cfg = &config.Config{ReadwiseToken: "test-token"}
 	m.items = []Item{
-		{ID: "1", Title: "Item 1", Action: "read_now", Priority: "high"},
 		{ID: "2", Title: "Item 2", Action: "later"},
 	}
 	m.listView.SetItems(m.items)
@@ -799,8 +673,8 @@ func TestApplySavedTriages(t *testing.T) {
 	m := NewModel()
 
 	// Pre-populate triage store
-	m.triageStore.SetItem("1", "archive", "low", "manual", nil, nil)
-	m.triageStore.SetItem("2", "read_now", "high", "llm", nil, nil)
+	m.triageStore.SetItem("1", "archive", "manual", nil, nil)
+	m.triageStore.SetItem("2", "read_now", "llm", nil, nil)
 
 	// Simulate loading items (which calls applySavedTriages)
 	m.Update(ItemsLoadedMsg{Items: []Item{
@@ -809,15 +683,6 @@ func TestApplySavedTriages(t *testing.T) {
 		{ID: "3", Title: "Item 3"},
 	}})
 
-	if m.items[0].Action != "archive" || m.items[0].Priority != "low" {
-		t.Errorf("item 1 not restored: action=%q priority=%q", m.items[0].Action, m.items[0].Priority)
-	}
-	if m.items[1].Action != "read_now" || m.items[1].Priority != "high" {
-		t.Errorf("item 2 not restored: action=%q priority=%q", m.items[1].Action, m.items[1].Priority)
-	}
-	if m.items[2].Action != "" || m.items[2].Priority != "" {
-		t.Errorf("item 3 should have no triage: action=%q priority=%q", m.items[2].Action, m.items[2].Priority)
-	}
 }
 
 func TestStateString(t *testing.T) {
@@ -868,7 +733,7 @@ func TestDefaultStyles(t *testing.T) {
 
 func TestSaveLLMTriage(t *testing.T) {
 	m := NewModel()
-	m.saveLLMTriage("item1", "read_now", "high", nil, nil)
+	m.saveLLMTriage("item1", "read_now", nil, nil)
 
 	if m.triageStore == nil {
 		t.Fatal("expected triageStore")
@@ -889,7 +754,7 @@ func TestSaveLLMTriageNilStore(t *testing.T) {
 	m := NewModel()
 	m.triageStore = nil
 	// Should not panic
-	m.saveLLMTriage("item1", "read_now", "high", nil, nil)
+	m.saveLLMTriage("item1", "read_now", nil, nil)
 }
 
 func TestConfigViewWithError(t *testing.T) {
@@ -1453,7 +1318,6 @@ func TestFeedUpdatePromotesToInbox(t *testing.T) {
 	m.fetchLocation = "feed"
 	m.items = []Item{
 		{ID: "1", Title: "Read Now Item", Action: "read_now"},
-		{ID: "2", Title: "Needs Review Item", Action: "needs_review"},
 		{ID: "3", Title: "Later Item", Action: "later"},
 		{ID: "4", Title: "Archive Item", Action: "archive"},
 	}
@@ -2096,9 +1960,8 @@ func TestTriageFinishedMsg_Success(t *testing.T) {
 			Title: "Article 1",
 			URL:   "https://example.com/1",
 			TriageDecision: triage.TriageDecision{
-				Action:   "read_now",
-				Priority: "high",
-				Reason:   "Very useful",
+				Action: "read_now",
+				Reason: "Very useful",
 			},
 			MetadataEnhancement: triage.MetadataEnhancement{
 				SuggestedTags: []string{"productivity", "tools"},
@@ -2109,9 +1972,8 @@ func TestTriageFinishedMsg_Success(t *testing.T) {
 			Title: "Article 2",
 			URL:   "https://example.com/2",
 			TriageDecision: triage.TriageDecision{
-				Action:   "archive",
-				Priority: "low",
-				Reason:   "Not relevant",
+				Action: "archive",
+				Reason: "Not relevant",
 			},
 		},
 	}
@@ -2126,9 +1988,6 @@ func TestTriageFinishedMsg_Success(t *testing.T) {
 	}
 	if m.items[0].Action != "read_now" {
 		t.Errorf("expected item 1 action 'read_now', got %q", m.items[0].Action)
-	}
-	if m.items[0].Priority != "high" {
-		t.Errorf("expected item 1 priority 'high', got %q", m.items[0].Priority)
 	}
 	if len(m.items[0].Tags) != 2 {
 		t.Errorf("expected 2 tags on item 1, got %d", len(m.items[0].Tags))
@@ -2167,9 +2026,8 @@ func TestApplyTriageResults_FiltersActionTags(t *testing.T) {
 			ID:    "1",
 			Title: "Article 1",
 			TriageDecision: triage.TriageDecision{
-				Action:   "later",
-				Priority: "medium",
-				Reason:   "Read later",
+				Action: "later",
+				Reason: "Read later",
 			},
 			MetadataEnhancement: triage.MetadataEnhancement{
 				SuggestedTags: []string{"later", "productivity", "read_now", "tools"},
@@ -2199,9 +2057,8 @@ func TestApplyTriageResults_UnknownIDSkipped(t *testing.T) {
 			ID:    "unknown",
 			Title: "Unknown Article",
 			TriageDecision: triage.TriageDecision{
-				Action:   "archive",
-				Priority: "low",
-				Reason:   "test",
+				Action: "archive",
+				Reason: "test",
 			},
 		},
 	}

@@ -95,7 +95,6 @@ type Item struct {
 	ID           string
 	Title        string
 	Action       string
-	Priority     string
 	URL          string
 	Summary      string
 	Category     string
@@ -473,7 +472,6 @@ func (m *Model) startFetching() tea.Cmd {
 				ID:           item.ID,
 				Title:        item.Title,
 				Action:       "",
-				Priority:     "",
 				URL:          item.URL,
 				Summary:      item.Summary,
 				Category:     item.Category,
@@ -575,10 +573,6 @@ func (m *Model) startUpdating() tea.Cmd {
 			// Start with original Readwise tags to preserve them
 			update.Tags = append(update.Tags, item.OriginalTags...)
 
-			if item.Priority != "" {
-				update.Tags = append(update.Tags, "priority:"+item.Priority)
-			}
-
 			// Add LLM-suggested tags
 			if len(item.Tags) > 0 {
 				update.Tags = append(update.Tags, item.Tags...)
@@ -650,7 +644,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.applyBatchTags(tags)
 			} else if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 				item.Tags = tags
-				m.saveTriage(item.ID, item.Action, item.Priority, item.Tags)
+				m.saveTriage(item.ID, item.Action, item.Tags)
 				m.listView.SetItems(m.items)
 			}
 			m.editingTags = false
@@ -763,14 +757,6 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.applyBatchAction("archive")
 		case "d":
 			m.applyBatchAction("delete")
-		case "n":
-			m.applyBatchAction("needs_review")
-		case "1":
-			m.applyBatchPriority("high")
-		case "2":
-			m.applyBatchPriority("medium")
-		case "3":
-			m.applyBatchPriority("low")
 		}
 		return m, nil
 	}
@@ -785,14 +771,6 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setItemAction(item, "archive")
 		case "d":
 			m.setItemAction(item, "delete")
-		case "n":
-			m.setItemAction(item, "needs_review")
-		case "1":
-			m.setItemPriority(item, "high")
-		case "2":
-			m.setItemPriority(item, "medium")
-		case "3":
-			m.setItemPriority(item, "low")
 		}
 	}
 
@@ -804,18 +782,7 @@ func (m *Model) applyBatchAction(action string) {
 	for _, idx := range selected {
 		if idx >= 0 && idx < len(m.items) {
 			m.items[idx].Action = action
-			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority, m.items[idx].Tags)
-		}
-	}
-	m.listView.SetItems(m.items)
-}
-
-func (m *Model) applyBatchPriority(priority string) {
-	selected := m.listView.GetSelected()
-	for _, idx := range selected {
-		if idx >= 0 && idx < len(m.items) {
-			m.items[idx].Priority = priority
-			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority, m.items[idx].Tags)
+			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Tags)
 		}
 	}
 	m.listView.SetItems(m.items)
@@ -826,7 +793,7 @@ func (m *Model) applyBatchTags(tags []string) {
 	for _, idx := range selected {
 		if idx >= 0 && idx < len(m.items) {
 			m.items[idx].Tags = tags
-			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Priority, m.items[idx].Tags)
+			m.saveTriage(m.items[idx].ID, m.items[idx].Action, m.items[idx].Tags)
 		}
 	}
 	m.listView.SetItems(m.items)
@@ -881,13 +848,7 @@ func nextWordBoundary(runes []rune, pos int) int {
 
 func (m *Model) setItemAction(item *Item, action string) {
 	item.Action = action
-	m.saveTriage(item.ID, item.Action, item.Priority, item.Tags)
-	m.listView.SetItems(m.items)
-}
-
-func (m *Model) setItemPriority(item *Item, priority string) {
-	item.Priority = priority
-	m.saveTriage(item.ID, item.Action, item.Priority, item.Tags)
+	m.saveTriage(item.ID, item.Action, item.Tags)
 	m.listView.SetItems(m.items)
 }
 
@@ -918,24 +879,23 @@ func (m *Model) applySavedTriages() {
 	for i := range m.items {
 		if entry, ok := m.triageStore.GetItem(m.items[i].ID); ok {
 			m.items[i].Action = entry.Action
-			m.items[i].Priority = entry.Priority
 			m.items[i].Tags = entry.Tags
 		}
 	}
 }
 
-func (m *Model) saveTriage(id, action, priority string, tags []string) {
+func (m *Model) saveTriage(id, action string, tags []string) {
 	if m.triageStore == nil {
 		return
 	}
-	m.triageStore.SetItem(id, action, priority, "manual", tags, nil)
+	m.triageStore.SetItem(id, action, "manual", tags, nil)
 }
 
-func (m *Model) saveLLMTriage(id, action, priority string, tags []string, report *triage.Result) {
+func (m *Model) saveLLMTriage(id, action string, tags []string, report *triage.Result) {
 	if m.triageStore == nil {
 		return
 	}
-	m.triageStore.SetItem(id, action, priority, "llm", tags, report)
+	m.triageStore.SetItem(id, action, "llm", tags, report)
 }
 
 func (m *Model) configView() string {
@@ -1265,15 +1225,13 @@ func (m *Model) renderReviewFooter() string {
 		line1 = []helpEntry{
 			{"j/k", "navigate"},
 			{"x", "deselect"},
-			{"r l a d n", "action"},
-			{"1 2 3", "priority"},
+			{"r l a d", "action"},
 		}
 	} else {
 		line1 = []helpEntry{
 			{"j/k", "navigate"},
 			{"x", "select"},
-			{"r l a d n", "action"},
-			{"1 2 3", "priority"},
+			{"r l a d", "action"},
 		}
 	}
 
@@ -1309,12 +1267,6 @@ func (m *Model) renderFullHelp() string {
 			{"l", "later"},
 			{"a", "archive"},
 			{"d", "delete"},
-			{"n", "needs review"},
-		}},
-		{"Priority", []helpEntry{
-			{"1", "high"},
-			{"2", "medium"},
-			{"3", "low"},
 		}},
 		{"Operations", []helpEntry{
 			{"enter", "edit tags"},
@@ -1450,7 +1402,6 @@ func (m *Model) applyTriageResults(results []triage.Result) int {
 		}
 
 		item.Action = result.TriageDecision.Action
-		item.Priority = result.TriageDecision.Priority
 
 		// Apply suggested tags, filtering out action-name duplicates
 		if len(result.MetadataEnhancement.SuggestedTags) > 0 {
@@ -1465,7 +1416,7 @@ func (m *Model) applyTriageResults(results []triage.Result) int {
 		}
 
 		// Save to triage store with full report
-		m.saveLLMTriage(item.ID, item.Action, item.Priority, item.Tags, &result)
+		m.saveLLMTriage(item.ID, item.Action, item.Tags, &result)
 		applied++
 	}
 

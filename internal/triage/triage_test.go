@@ -5,10 +5,6 @@ import (
 	"testing"
 )
 
-func contains(s, substr string) bool {
-	return strings.Contains(s, substr)
-}
-
 func TestParseTriageResponse(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -25,7 +21,6 @@ func TestParseTriageResponse(t *testing.T) {
 					"url": "https://example.com",
 					"triage_decision": {
 						"action": "read_now",
-						"priority": "high",
 						"reason": "Important article"
 					}
 				}
@@ -35,7 +30,7 @@ func TestParseTriageResponse(t *testing.T) {
 		},
 		{
 			name:      "json in code block",
-			content:   "```json\n[\n  {\n    \"id\": \"item1\",\n    \"title\": \"Test\",\n    \"url\": \"https://example.com\",\n    \"triage_decision\": {\n      \"action\": \"later\",\n      \"priority\": \"medium\",\n      \"reason\": \"Good article\"\n    }\n  }\n]\n```",
+			content:   "```json\n[\n  {\n    \"id\": \"item1\",\n    \"title\": \"Test\",\n    \"url\": \"https://example.com\",\n    \"triage_decision\": {\n      \"action\": \"later\",\n      \"reason\": \"Good article\"\n    }\n  }\n]\n```",
 			wantCount: 1,
 			wantErr:   false,
 		},
@@ -59,7 +54,6 @@ func TestParseTriageResponse(t *testing.T) {
 				"url": "https://example.com",
 				"triage_decision": {
 					"action": "archive",
-					"priority": "low",
 					"reason": "Not relevant",
 				},
 			}]`,
@@ -99,7 +93,7 @@ func TestParseTriageResponseValidation(t *testing.T) {
 			content: `[{
 				"title": "Test",
 				"url": "https://example.com",
-				"triage_decision": {"action": "read_now", "priority": "high", "reason": "test"}
+				"triage_decision": {"action": "read_now", "reason": "test"}
 			}]`,
 			wantErr: "missing id",
 		},
@@ -108,7 +102,7 @@ func TestParseTriageResponseValidation(t *testing.T) {
 			content: `[{
 				"id": "item1",
 				"url": "https://example.com",
-				"triage_decision": {"action": "read_now", "priority": "high", "reason": "test"}
+				"triage_decision": {"action": "read_now", "reason": "test"}
 			}]`,
 			wantErr: "missing title",
 		},
@@ -118,7 +112,7 @@ func TestParseTriageResponseValidation(t *testing.T) {
 				"id": "item1",
 				"title": "Test",
 				"url": "https://example.com",
-				"triage_decision": {"priority": "high", "reason": "test"}
+				"triage_decision": {"reason": "test"}
 			}]`,
 			wantErr: "missing triage_decision.action",
 		},
@@ -204,7 +198,7 @@ func TestExtractJSONWithMixedContent(t *testing.T) {
 
 Some text before the JSON.
 
-[{"id": "1", "title": "Test", "url": "https://example.com", "triage_decision": {"action": "read_now", "priority": "high", "reason": "test"}}]
+[{"id": "1", "title": "Test", "url": "https://example.com", "triage_decision": {"action": "read_now", "reason": "test"}}]
 
 **Today's Top 3**:
 1. Item one
@@ -224,4 +218,8 @@ func TestExtractJSONUnmatchedBracket(t *testing.T) {
 	if result != "" {
 		t.Errorf("expected empty string for unmatched bracket, got %q", result)
 	}
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }

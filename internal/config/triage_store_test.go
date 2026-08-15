@@ -20,8 +20,8 @@ func TestTriageStore(t *testing.T) {
 	}
 	defer store.Close()
 
-	store.SetItem("item1", "read_now", "high", "manual", nil, nil)
-	store.SetItem("item2", "later", "medium", "llm", nil, nil)
+	store.SetItem("item1", "read_now", "manual", nil, nil)
+	store.SetItem("item2", "later", "llm", nil, nil)
 
 	if !store.HasTriaged("item1") {
 		t.Error("expected item1 to be triaged")
@@ -37,9 +37,6 @@ func TestTriageStore(t *testing.T) {
 	}
 	if entry.Action != "read_now" {
 		t.Errorf("expected action read_now, got %s", entry.Action)
-	}
-	if entry.Priority != "high" {
-		t.Errorf("expected priority high, got %s", entry.Priority)
 	}
 	if entry.Source != "manual" {
 		t.Errorf("expected source manual, got %s", entry.Source)
@@ -108,9 +105,8 @@ func TestTriageStoreWithReport(t *testing.T) {
 		ID:    "item1",
 		Title: "Test Article",
 		TriageDecision: triage.TriageDecision{
-			Action:   "read_now",
-			Priority: "high",
-			Reason:   "Very relevant to current work",
+			Action: "read_now",
+			Reason: "Very relevant to current work",
 		},
 		ContentAnalysis: triage.ContentAnalysis{
 			Type:      "tutorial",
@@ -121,7 +117,7 @@ func TestTriageStoreWithReport(t *testing.T) {
 		},
 	}
 
-	store.SetItem("item1", "read_now", "high", "llm", []string{"golang", "database"}, report)
+	store.SetItem("item1", "read_now", "llm", []string{"golang", "database"}, report)
 
 	entry, ok := store.GetItem("item1")
 	if !ok {
@@ -151,8 +147,8 @@ func TestTriageStoreUpsert(t *testing.T) {
 	}
 	defer store.Close()
 
-	store.SetItem("item1", "later", "low", "manual", nil, nil)
-	store.SetItem("item1", "read_now", "high", "llm", []string{"updated"}, nil)
+	store.SetItem("item1", "later", "manual", nil, nil)
+	store.SetItem("item1", "read_now", "llm", []string{"updated"}, nil)
 
 	entry, ok := store.GetItem("item1")
 	if !ok {
@@ -160,9 +156,6 @@ func TestTriageStoreUpsert(t *testing.T) {
 	}
 	if entry.Action != "read_now" {
 		t.Errorf("expected action read_now after upsert, got %s", entry.Action)
-	}
-	if entry.Priority != "high" {
-		t.Errorf("expected priority high after upsert, got %s", entry.Priority)
 	}
 	if entry.Source != "llm" {
 		t.Errorf("expected source llm after upsert, got %s", entry.Source)
@@ -197,14 +190,12 @@ func TestTriageStoreMigrateFromJSON(t *testing.T) {
 		"items": map[string]interface{}{
 			"doc1": map[string]interface{}{
 				"action":     "read_now",
-				"priority":   "high",
 				"tags":       []string{"golang"},
 				"triaged_at": "2025-01-01T00:00:00Z",
 				"source":     "llm",
 			},
 			"doc2": map[string]interface{}{
 				"action":     "archive",
-				"priority":   "low",
 				"triaged_at": "2025-01-01T00:00:00Z",
 				"source":     "manual",
 			},
@@ -228,9 +219,6 @@ func TestTriageStoreMigrateFromJSON(t *testing.T) {
 	}
 	if entry1.Action != "read_now" {
 		t.Errorf("expected action read_now, got %s", entry1.Action)
-	}
-	if entry1.Priority != "high" {
-		t.Errorf("expected priority high, got %s", entry1.Priority)
 	}
 	if len(entry1.Tags) != 1 || entry1.Tags[0] != "golang" {
 		t.Errorf("expected tags [golang], got %v", entry1.Tags)
