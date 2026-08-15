@@ -650,6 +650,8 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case keyMatches(msg, m.keys.Help):
 			m.showHelp = !m.showHelp
 			return m, nil
+		case keyMatches(msg, m.keys.Up), keyMatches(msg, m.keys.Down), keyMatches(msg, m.keys.Open):
+			// Navigation and open URL always allowed — fall through
 		case keyMatches(msg, m.keys.AutoTriage), keyMatches(msg, m.keys.FetchMore),
 			keyMatches(msg, m.keys.Refresh), keyMatches(msg, m.keys.Back),
 			keyMatches(msg, m.keys.Update):
