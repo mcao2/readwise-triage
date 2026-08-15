@@ -10,6 +10,10 @@ all: build
 build:
 	go build -o $(BINARY_NAME) $(CMD_PATH)
 
+check: fmt vet test
+
+check-fast: build test
+
 test:
 	go test ./... -v
 
