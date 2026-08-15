@@ -94,7 +94,12 @@ func NewLLMClient(apiKey string, opts ...LLMOption) (*LLMClient, error) {
 
 	// Auto-append standard API endpoint path if not already present
 	baseURL := strings.TrimRight(client.baseURL, "/")
-	if !strings.HasSuffix(baseURL, "/v1/chat/completions") && !strings.Contains(baseURL, "/v1/chat/completions/") {
+	switch {
+	case strings.HasSuffix(baseURL, "/chat/completions"):
+		// already complete, do nothing
+	case strings.HasSuffix(baseURL, "/v1"):
+		client.baseURL = baseURL + "/chat/completions"
+	default:
 		client.baseURL = baseURL + "/v1/chat/completions"
 	}
 
