@@ -26,22 +26,6 @@ func (m *Model) fetchingView() string {
 	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
 }
 
-func (m *Model) triagingView() string {
-	spinnerView := m.spinner.View()
-	status := fmt.Sprintf("%s %s", spinnerView, m.statusMessage)
-
-	content := m.styles.Border.Render(
-		lipgloss.JoinVertical(lipgloss.Center,
-			m.styles.Title.Render("Triaging Items"),
-			"",
-			m.styles.Normal.Render(status),
-		),
-	)
-
-	help := m.renderHelpLine([]helpEntry{{"q", "cancel"}})
-	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
-}
-
 func (m *Model) reviewingView() string {
 	// Header bar
 	headerLeft := m.styles.HelpKey.Render("Readwise Triage")

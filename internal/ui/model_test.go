@@ -474,7 +474,7 @@ func TestAllViewRendering(t *testing.T) {
 		setup func(m *Model)
 	}{
 		{"fetching", func(m *Model) { m.state = StateFetching }},
-		{"triaging", func(m *Model) { m.state = StateTriaging }},
+		{"triaging", func(m *Model) { m.state = StateReviewing }},
 		{"reviewing", func(m *Model) {
 			m.state = StateReviewing
 			m.items = []Item{{ID: "1", Title: "Test"}}
@@ -666,7 +666,7 @@ func TestStateString(t *testing.T) {
 		want  string
 	}{
 		{StateFetching, "Fetching"},
-		{StateTriaging, "Triaging"},
+		{StateReviewing, "Reviewing"},
 		{StateReviewing, "Reviewing"},
 		{StateConfirming, "Confirming"},
 		{StateUpdating, "Updating"},
@@ -1553,7 +1553,7 @@ func TestWordBoundaryHelpers(t *testing.T) {
 
 func TestTriageFinishedMsg_Success(t *testing.T) {
 	m := NewModel()
-	m.state = StateTriaging
+	m.state = StateReviewing
 	m.items = []Item{
 		{ID: "1", Title: "Article 1", URL: "https://example.com/1"},
 		{ID: "2", Title: "Article 2", URL: "https://example.com/2"},
@@ -1605,7 +1605,7 @@ func TestTriageFinishedMsg_Success(t *testing.T) {
 
 func TestTriageFinishedMsg_Error(t *testing.T) {
 	m := NewModel()
-	m.state = StateTriaging
+	m.state = StateReviewing
 
 	m.Update(TriageFinishedMsg{Err: fmt.Errorf("API rate limited")})
 
@@ -1743,7 +1743,7 @@ func TestAutoTriageKeyBinding(t *testing.T) {
 	if cmd == nil {
 		t.Error("expected command from T key")
 	}
-	if m.state != StateTriaging {
-		t.Errorf("expected StateTriaging after T key, got %v", m.state)
+	if m.state != StateReviewing {
+		t.Errorf("expected StateReviewing after T key, got %v", m.state)
 	}
 }

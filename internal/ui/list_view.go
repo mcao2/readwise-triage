@@ -23,6 +23,7 @@ type ListView struct {
 	height      int
 	visibleRows int
 	columns     []Column
+	triagingIDs map[string]bool
 
 	// Styles for custom rendering
 	headerStyle   lipgloss.Style
@@ -97,12 +98,19 @@ func (lv *ListView) SetItems(items []Item) {
 	lv.updateRows()
 }
 
+func (lv *ListView) SetTriagingIDs(ids map[string]bool) {
+	lv.triagingIDs = ids
+}
+
 func (lv *ListView) updateRows() {
 	rows := make([][]string, len(lv.items))
 	for i, item := range lv.items {
 		sel := " "
 		if lv.selected[i] {
 			sel = "●"
+		}
+		if lv.triagingIDs[item.ID] {
+			sel = "⠹"
 		}
 		actionText := runewidth.FillRight(getActionText(item.Action), 10)
 		category := Truncate(item.Category, 10)
