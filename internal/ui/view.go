@@ -68,7 +68,13 @@ func (m *Model) reviewingView() string {
 	// Status message
 	var statusLine string
 	if m.statusMessage != "" {
-		statusLine = m.styles.Help.Render("  " + m.statusMessage)
+		if m.messageType == "error" {
+			statusLine = m.styles.Error.Render("  ✗ " + m.statusMessage)
+		} else if m.messageType == "success" {
+			statusLine = m.styles.Success.Render("  ✓ " + m.statusMessage)
+		} else {
+			statusLine = m.styles.Help.Render("  " + m.statusMessage)
+		}
 	}
 
 	// Help overlay or footer (hidden during tag editing)
@@ -137,6 +143,40 @@ func (m *Model) reviewingView() string {
 		content = strings.Join(bgLines, "\n")
 	}
 
+	// Confirm popup overlay
+	if m.confirming && m.height > 0 {
+		popup := m.styles.Card.Render(
+			lipgloss.JoinVertical(lipgloss.Center,
+				m.styles.Title.Render("Push to Readwise?"),
+				"",
+				m.styles.Normal.Render(fmt.Sprintf("%d items to update", m.countUpdatable())),
+				"",
+				m.renderHelpLine([]helpEntry{{"y", "confirm"}, {"n", "cancel"}}),
+			),
+		)
+
+		bgLines := strings.Split(content, "\n")
+		for len(bgLines) < m.height {
+			bgLines = append(bgLines, "")
+		}
+		bgLines = bgLines[:m.height]
+
+		popupLines := strings.Split(popup, "\n")
+		popupH := len(popupLines)
+		w := m.width - 1
+		if w < 1 {
+			w = 1
+		}
+		startY := (m.height - popupH) / 2
+		for i, pLine := range popupLines {
+			row := startY + i
+			if row >= 0 && row < m.height {
+				bgLines[row] = lipgloss.PlaceHorizontal(w, lipgloss.Center, pLine)
+			}
+		}
+		content = strings.Join(bgLines, "\n")
+	}
+
 	// Pad output to exactly m.height lines so the alternate screen buffer
 	// repaints cleanly and doesn't leave stale content from previous frames.
 	if m.height > 0 {
@@ -147,80 +187,6 @@ func (m *Model) reviewingView() string {
 		return strings.Join(rendered[:m.height], "\n")
 	}
 	return content
-}
-
-func (m *Model) confirmingView() string {
-	content := m.styles.Border.Render(
-		lipgloss.JoinVertical(lipgloss.Center,
-			m.styles.Title.Render("Confirm Update"),
-			"",
-			m.styles.Normal.Render("Push changes to Readwise?"),
-		),
-	)
-
-	help := m.renderHelpLine([]helpEntry{
-		{"y", "confirm"},
-		{"n", "cancel"},
-	})
-
-	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
-}
-
-func (m *Model) updatingView() string {
-	spinnerView := m.spinner.View()
-	progressBar := m.progress.View()
-	pctText := fmt.Sprintf("%.0f%%", m.updateProgress*100)
-
-	content := m.styles.Border.Render(
-		lipgloss.JoinVertical(lipgloss.Center,
-			m.styles.Title.Render("Updating Readwise"),
-			"",
-			fmt.Sprintf("%s %s  %s", spinnerView, m.styles.Normal.Render(m.statusMessage), m.styles.Help.Render(pctText)),
-			"",
-			progressBar,
-		),
-	)
-
-	return lipgloss.JoinVertical(lipgloss.Center, "", content)
-}
-
-func (m *Model) doneView() string {
-	content := m.styles.Border.Render(
-		lipgloss.JoinVertical(lipgloss.Center,
-			m.styles.Success.Render("✓ Complete"),
-			"",
-			m.styles.Normal.Render(m.statusMessage),
-		),
-	)
-
-	help := m.renderHelpLine([]helpEntry{{"any key", "back to review"}})
-	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
-}
-
-func (m *Model) messageView() string {
-	var icon, title string
-	var titleStyle lipgloss.Style
-
-	if m.messageType == "error" {
-		icon = "✗"
-		title = "Error"
-		titleStyle = m.styles.Error
-	} else {
-		icon = "✓"
-		title = "Success"
-		titleStyle = m.styles.Success
-	}
-
-	content := m.styles.Border.Render(
-		lipgloss.JoinVertical(lipgloss.Center,
-			titleStyle.Render(icon+" "+title),
-			"",
-			m.styles.Normal.Render(m.statusMessage),
-		),
-	)
-
-	help := m.renderHelpLine([]helpEntry{{"any key", "continue"}})
-	return lipgloss.JoinVertical(lipgloss.Center, "", content, "", help)
 }
 
 // Help rendering

@@ -26,10 +26,6 @@ type State int
 const (
 	StateFetching State = iota
 	StateReviewing
-	StateConfirming
-	StateUpdating
-	StateDone
-	StateMessage
 )
 
 func (s State) String() string {
@@ -38,14 +34,6 @@ func (s State) String() string {
 		return "Fetching"
 	case StateReviewing:
 		return "Reviewing"
-	case StateConfirming:
-		return "Confirming"
-	case StateUpdating:
-		return "Updating"
-	case StateDone:
-		return "Done"
-	case StateMessage:
-		return "Message"
 	default:
 		return "Unknown"
 	}
@@ -74,6 +62,9 @@ type Model struct {
 
 	triaging      bool
 	triagingIDs   map[string]bool
+	fetching      bool
+	updating      bool
+	confirming    bool
 	spinnerIdx    int
 	spinnerFrames []string
 
@@ -193,6 +184,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmd, m.waitForUpdateProgress(msg.Channel, msg.Success, msg.Failed))
 
 	case ItemsLoadedMsg:
+		m.fetching = false
 		m.items = msg.Items
 		m.applySavedTriages()
 		m.listView.SetItems(m.items)
@@ -200,12 +192,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = StateReviewing
 
 	case UpdateFinishedMsg:
-		m.statusMessage = fmt.Sprintf("Successfully updated %d items (%d failed)", msg.Success, msg.Failed)
-		m.state = StateDone
+		m.updating = false
+		m.statusMessage = fmt.Sprintf("✓ Updated %d items (%d failed)", msg.Success, msg.Failed)
+		m.messageType = "success"
+		m.listView.SetItems(m.items)
 
 	case ErrorMsg:
+		m.fetching = false
+		m.updating = false
+		m.triaging = false
+		m.triagingIDs = nil
+		m.listView.SetTriagingIDs(nil)
 		m.statusMessage = msg.Error.Error()
-		m.state = StateMessage
+		m.messageType = "error"
 
 	case TriageProgressMsg:
 		m.statusMessage = fmt.Sprintf("Triaging batch %d/%d...", msg.Batch, msg.Total)
@@ -222,7 +221,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			m.statusMessage = fmt.Sprintf("LLM triage failed: %v", msg.Err)
 			m.messageType = "error"
-			m.state = StateMessage
 			return m, nil
 		}
 		applied := m.applyTriageResults(msg.Results)
@@ -244,14 +242,6 @@ func (m *Model) View() string {
 	case StateReviewing:
 		content = m.reviewingView()
 		centered = false
-	case StateConfirming:
-		content = m.confirmingView()
-	case StateUpdating:
-		content = m.updatingView()
-	case StateDone:
-		content = m.doneView()
-	case StateMessage:
-		content = m.messageView()
 	default:
 		return "Unknown state"
 	}
@@ -264,13 +254,6 @@ func (m *Model) View() string {
 }
 
 func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch m.state {
-	case StateDone:
-		return m.handleDoneKeys(msg)
-	case StateMessage:
-		return m.handleMessageKeys(msg)
-	}
-
 	switch {
 	case keyMatches(msg, m.keys.Quit):
 		return m, tea.Quit
@@ -280,10 +263,10 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.state {
+	case StateFetching:
+		return m, nil // block keys during initial fetch
 	case StateReviewing:
 		return m.handleReviewingKeys(msg)
-	case StateConfirming:
-		return m.handleConfirmingKeys(msg)
 	}
 
 	return m, nil
@@ -315,7 +298,16 @@ type UpdateFinishedMsg struct {
 }
 
 func (m *Model) startFetching() tea.Cmd {
-	m.state = StateFetching
+	if m.fetching {
+		return nil
+	}
+	m.fetching = true
+	if len(m.items) > 0 {
+		m.statusMessage = "Fetching..."
+		m.state = StateReviewing
+	} else {
+		m.state = StateFetching
+	}
 	m.statusMessage = "Loading from Readwise..."
 
 	return func() tea.Msg {
@@ -387,7 +379,7 @@ func (m *Model) startTriaging() tea.Cmd {
 	if err != nil {
 		m.triaging = false
 		m.statusMessage = fmt.Sprintf("Triage failed: %v", err)
-		m.state = StateMessage
+		m.messageType = "error"
 		return nil
 	}
 
@@ -486,10 +478,11 @@ func (m *Model) waitForTriageProgress(ch chan TriageBatchProgress, allResults []
 }
 
 func (m *Model) startUpdating() tea.Cmd {
+	m.confirming = false
 	if m.cfg == nil || m.cfg.ReadwiseToken == "" {
-		return func() tea.Msg {
-			return ErrorMsg{Error: fmt.Errorf("READWISE_TOKEN not configured")}
-		}
+		m.statusMessage = "READWISE_TOKEN not configured"
+		m.messageType = "error"
+		return nil
 	}
 
 	selectedIndices := m.listView.GetSelected()
@@ -537,14 +530,15 @@ func (m *Model) startUpdating() tea.Cmd {
 	}
 
 	if len(updates) == 0 {
-		return func() tea.Msg {
-			return UpdateFinishedMsg{Success: 0, Failed: 0}
-		}
+		m.statusMessage = "No items to update"
+		m.messageType = "success"
+		return nil
 	}
 
-	m.state = StateUpdating
+	m.updating = true
 	m.updateProgress = 0
 	m.statusMessage = "Preparing updates..."
+	m.confirming = false
 
 	progressChan := make(chan readwise.BatchUpdateProgress)
 
@@ -585,6 +579,19 @@ func (m *Model) waitForUpdateProgress(ch chan readwise.BatchUpdateProgress, succ
 }
 
 func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Confirm popup intercept
+	if m.confirming {
+		s := msg.String()
+		if s == "y" || s == "Y" || msg.Type == tea.KeyEnter {
+			return m, m.startUpdating()
+		}
+		if s == "n" || s == "N" || msg.Type == tea.KeyEsc {
+			m.confirming = false
+			return m, nil
+		}
+		return m, nil
+	}
+
 	// Tag editing mode intercept (must run before triage guard)
 	if m.editingTags {
 		runes := []rune(m.tagsInput)
@@ -643,8 +650,8 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// During triage: block global ops, allow per-item editing on non-triaging items
-	if m.triaging {
+	// During triage/fetch/update: block global ops, allow navigation
+	if m.triaging || m.fetching || m.updating {
 		switch {
 		case keyMatches(msg, m.keys.Quit):
 			return m, tea.Quit
@@ -659,10 +666,15 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil // block global ops
 		default:
 			// Block editing on triaging items
-			if item := m.listView.GetItem(m.listView.Cursor()); item != nil && m.triagingIDs[item.ID] {
-				return m, nil
+			if m.triaging {
+				if item := m.listView.GetItem(m.listView.Cursor()); item != nil && m.triagingIDs[item.ID] {
+					return m, nil
+				}
 			}
-			// Fall through to normal handling for non-triaging items
+			if m.updating || m.fetching {
+				return m, nil // block all editing during update/fetch
+			}
+			// Fall through to normal handling
 		}
 	}
 
@@ -699,7 +711,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err := openURL(item.URL); err != nil {
 				m.statusMessage = fmt.Sprintf("Failed to open URL: %v", err)
 				m.messageType = "error"
-				m.state = StateMessage
+				m.messageType = "error"
 			}
 		}
 		return m, nil
@@ -709,7 +721,7 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.batchMode = len(m.listView.GetSelected()) > 0
 		return m, nil
 	case keyMatches(msg, m.keys.Update):
-		m.state = StateConfirming
+		m.confirming = true
 		return m, nil
 	case keyMatches(msg, m.keys.FetchMore):
 		*m.activeLookbackPtr() += 7
@@ -751,6 +763,16 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) countUpdatable() int {
+	count := 0
+	for i := range m.items {
+		if m.items[i].Action != "" {
+			count++
+		}
+	}
+	return count
 }
 
 func (m *Model) applyBatchAction(action string) {
@@ -826,26 +848,6 @@ func (m *Model) setItemAction(item *Item, action string) {
 	item.Action = action
 	m.saveTriage(item.ID, item.Action, item.Tags)
 	m.listView.SetItems(m.items)
-}
-
-func (m *Model) handleConfirmingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "y", "Y":
-		return m, m.startUpdating()
-	case "n", "N", "esc":
-		m.state = StateReviewing
-	}
-	return m, nil
-}
-
-func (m *Model) handleDoneKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	return m, m.startFetching()
-}
-
-func (m *Model) handleMessageKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	m.state = StateReviewing
-	m.statusMessage = ""
-	return m, nil
 }
 
 func (m *Model) applySavedTriages() {

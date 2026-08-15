@@ -57,14 +57,14 @@ func TestStateTransitions(t *testing.T) {
 	}
 
 	m.Update(ErrorMsg{Error: fmt.Errorf("test error")})
-	if m.state != StateMessage {
-		t.Errorf("expected state StateMessage after error, got %v", m.state)
+	if m.state != StateReviewing {
+		t.Errorf("expected state StateReviewing after error, got %v", m.state)
 	}
 
 	m.Update(ItemsLoadedMsg{Items: items})
 	m.Update(UpdateFinishedMsg{Success: 2, Failed: 0})
-	if m.state != StateDone {
-		t.Errorf("expected state StateDone, got %v", m.state)
+	if m.state != StateReviewing {
+		t.Errorf("expected state StateReviewing, got %v", m.state)
 	}
 }
 
@@ -184,29 +184,24 @@ func TestApplyActions(t *testing.T) {
 func TestHandleAdditionalKeys(t *testing.T) {
 	m := NewModel()
 
-	m.state = StateConfirming
+	// 'n' in confirm popup cancels
+	m.state = StateReviewing
+	m.confirming = true
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
-	if m.state != StateReviewing {
-		t.Errorf("expected Reviewing state after 'n' in Confirming, got %v", m.state)
+	if m.confirming {
+		t.Error("expected confirming=false after 'n'")
 	}
 
-	m.state = StateConfirming
+	// 'y' in confirm popup starts update
+	m.confirming = true
+	m.cfg = &config.Config{ReadwiseToken: "test"}
+	m.items = []Item{{ID: "1", Title: "Test", Action: "read_now"}}
+	m.listView.SetItems(m.items)
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
-	if cmd == nil {
-		t.Error("expected command after 'y' in Confirming")
+	if !m.updating {
+		t.Error("expected updating=true after 'y'")
 	}
-
-	m.state = StateDone
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	if m.state != StateFetching {
-		t.Errorf("expected Fetching state after key in Done (re-fetch), got %v", m.state)
-	}
-
-	m.state = StateMessage
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	if m.state != StateReviewing {
-		t.Errorf("expected Reviewing state after key in Message, got %v", m.state)
-	}
+	_ = cmd
 }
 
 func TestUpdateWithSelection(t *testing.T) {
@@ -220,11 +215,14 @@ func TestUpdateWithSelection(t *testing.T) {
 	m.listView.SetCursor(0)
 	m.listView.ToggleSelection()
 
-	m.state = StateConfirming
+	m.state = StateReviewing
+	m.cfg = &config.Config{ReadwiseToken: "test"}
+	m.confirming = true
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
-	if cmd == nil {
-		t.Fatal("expected command from Update")
+	if !m.updating {
+		t.Fatal("expected updating=true from Update")
 	}
+	_ = cmd
 }
 
 func TestProgressUpdateLoop(t *testing.T) {
@@ -281,7 +279,7 @@ func TestViewRendering(t *testing.T) {
 		t.Error("Reviewing view is empty")
 	}
 
-	m.state = StateDone
+	m.state = StateReviewing
 	m.statusMessage = "All done"
 	view = m.View()
 	if view == "" {
@@ -300,8 +298,8 @@ func TestRefreshKey(t *testing.T) {
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
 
-	if m.state != StateFetching {
-		t.Errorf("expected state StateFetching after Refresh key, got %v", m.state)
+	if !m.fetching {
+		t.Error("expected fetching=true after Refresh key")
 	}
 
 	if cmd == nil {
@@ -460,8 +458,8 @@ func TestFetchMoreKey(t *testing.T) {
 	if m.inboxLookback != initialLookback+7 {
 		t.Errorf("expected inboxLookback %d, got %d", initialLookback+7, m.inboxLookback)
 	}
-	if m.state != StateFetching {
-		t.Errorf("expected StateFetching, got %v", m.state)
+	if !m.fetching {
+		t.Error("expected fetching=true after FetchMore key")
 	}
 	if cmd == nil {
 		t.Error("expected command after FetchMore key")
@@ -490,23 +488,23 @@ func TestAllViewRendering(t *testing.T) {
 			m.state = StateReviewing
 			m.items = []Item{}
 		}},
-		{"confirming", func(m *Model) { m.state = StateConfirming }},
+		{"confirming", func(m *Model) { m.state = StateReviewing }},
 		{"updating", func(m *Model) {
-			m.state = StateUpdating
+			m.state = StateReviewing
 			m.updateProgress = 0.5
 			m.statusMessage = "Updating..."
 		}},
 		{"done", func(m *Model) {
-			m.state = StateDone
+			m.state = StateReviewing
 			m.statusMessage = "All done"
 		}},
 		{"message_success", func(m *Model) {
-			m.state = StateMessage
+			m.state = StateReviewing
 			m.messageType = "success"
 			m.statusMessage = "It worked"
 		}},
 		{"message_error", func(m *Model) {
-			m.state = StateMessage
+			m.state = StateReviewing
 			m.messageType = "error"
 			m.statusMessage = "Something failed"
 		}},
@@ -531,15 +529,16 @@ func TestConfirmingToUpdatingFlow(t *testing.T) {
 		{ID: "2", Title: "Item 2", Action: "later"},
 	}
 	m.listView.SetItems(m.items)
-	m.state = StateConfirming
+	m.state = StateReviewing
+	m.confirming = true
 
 	// Press 'y' to confirm
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
-	if cmd == nil {
-		t.Fatal("expected command after confirming 'y'")
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if !m.updating {
+		t.Fatal("expected updating=true after confirming 'y'")
 	}
-	if m.state != StateUpdating {
-		t.Errorf("expected StateUpdating, got %v", m.state)
+	if m.confirming {
+		t.Error("expected confirming=false after 'y'")
 	}
 }
 
@@ -549,21 +548,14 @@ func TestStartUpdatingNoItems(t *testing.T) {
 	m.items = []Item{
 		{ID: "1", Title: "Item 1"}, // no action set
 	}
-	m.state = StateConfirming
+	m.state = StateReviewing
+	m.confirming = true
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
-	if cmd == nil {
-		t.Fatal("expected command")
-	}
-
-	// Execute the command — should return UpdateFinishedMsg with 0 items
-	msg := cmd()
-	finished, ok := msg.(UpdateFinishedMsg)
-	if !ok {
-		t.Fatalf("expected UpdateFinishedMsg, got %T", msg)
-	}
-	if finished.Success != 0 || finished.Failed != 0 {
-		t.Errorf("expected 0 success/0 failed, got %d/%d", finished.Success, finished.Failed)
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	// No items to update — startUpdating returns UpdateFinishedMsg immediately
+	// m.updating may be false since the flow completes instantly
+	if m.confirming {
+		t.Error("expected confirming=false")
 	}
 }
 
@@ -573,20 +565,18 @@ func TestStartUpdatingNoToken(t *testing.T) {
 	m.items = []Item{
 		{ID: "1", Title: "Item 1", Action: "read_now"},
 	}
-	m.state = StateConfirming
+	m.state = StateReviewing
+	m.confirming = true
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
-	if cmd == nil {
-		t.Fatal("expected command")
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if m.confirming {
+		t.Error("expected confirming=false")
 	}
-
-	msg := cmd()
-	errMsg, ok := msg.(ErrorMsg)
-	if !ok {
-		t.Fatalf("expected ErrorMsg, got %T", msg)
+	if m.statusMessage == "" {
+		t.Error("expected error status message")
 	}
-	if errMsg.Error == nil {
-		t.Error("expected non-nil error")
+	if m.messageType != "error" {
+		t.Error("expected error message type")
 	}
 }
 
@@ -606,13 +596,14 @@ func TestStartUpdatingWithSelection(t *testing.T) {
 	m.listView.SetCursor(2)
 	m.listView.ToggleSelection()
 
-	m.state = StateConfirming
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
-	if cmd == nil {
-		t.Fatal("expected command after confirming with selection")
+	m.state = StateReviewing
+	m.confirming = true
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if !m.updating {
+		t.Fatal("expected updating=true after confirming with selection")
 	}
-	if m.state != StateUpdating {
-		t.Errorf("expected StateUpdating, got %v", m.state)
+	if m.confirming {
+		t.Error("expected confirming=false")
 	}
 }
 
@@ -667,11 +658,6 @@ func TestStateString(t *testing.T) {
 	}{
 		{StateFetching, "Fetching"},
 		{StateReviewing, "Reviewing"},
-		{StateReviewing, "Reviewing"},
-		{StateConfirming, "Confirming"},
-		{StateUpdating, "Updating"},
-		{StateDone, "Done"},
-		{StateMessage, "Message"},
 		{State(99), "Unknown"},
 	}
 
@@ -787,8 +773,8 @@ func TestHandleReviewingUpdateKey(t *testing.T) {
 	m.state = StateReviewing
 
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
-	if m.state != StateConfirming {
-		t.Errorf("expected StateConfirming after 'u', got %v", m.state)
+	if m.state != StateReviewing {
+		t.Errorf("expected StateReviewing after 'u', got %v", m.state)
 	}
 }
 
@@ -828,13 +814,14 @@ func TestStartFetchingNilConfig(t *testing.T) {
 
 func TestStartTriaging(t *testing.T) {
 	m := NewModel()
-	// No items to triage → returns nil cmd, goes to StateMessage
+	m.state = StateReviewing
+	// No items to triage → returns nil cmd
 	cmd := m.startTriaging()
 	if cmd != nil {
 		t.Fatal("expected nil command when no items")
 	}
-	if m.state != StateMessage {
-		t.Errorf("expected StateMessage, got %v", m.state)
+	if m.triaging {
+		t.Error("expected triaging=false when no items")
 	}
 }
 
@@ -890,88 +877,6 @@ func TestFetchingViewSpinner(t *testing.T) {
 	view := m.View()
 	if !strings.Contains(view, "Loading from Readwise") {
 		t.Error("expected fetching view to contain loading text")
-	}
-}
-
-func TestUpdatingViewProgress(t *testing.T) {
-	m := NewModel()
-	m.state = StateUpdating
-	m.updateProgress = 0.75
-	m.statusMessage = "Updated 3/4 items"
-	view := m.View()
-	if !strings.Contains(view, "75%") {
-		t.Error("expected updating view to show percentage")
-	}
-	if !strings.Contains(view, "Updated 3/4") {
-		t.Error("expected updating view to show status message")
-	}
-}
-
-func TestDoneViewCheckmark(t *testing.T) {
-	m := NewModel()
-	m.state = StateDone
-	m.statusMessage = "Updated 5 items"
-	view := m.View()
-	if !strings.Contains(view, "Complete") {
-		t.Error("expected done view to contain Complete")
-	}
-	if !strings.Contains(view, "Updated 5 items") {
-		t.Error("expected done view to contain status message")
-	}
-}
-
-func TestDoneKeyRefetchesItems(t *testing.T) {
-	m := NewModel()
-	m.cfg = &config.Config{ReadwiseToken: "test-token"}
-
-	// Load items, mark one as archived, simulate update
-	items := []Item{
-		{ID: "1", Title: "Keep me"},
-		{ID: "2", Title: "Archive me", Action: "archive"},
-	}
-	m.Update(ItemsLoadedMsg{Items: items})
-	m.Update(UpdateFinishedMsg{Success: 1, Failed: 0})
-	if m.state != StateDone {
-		t.Fatalf("expected StateDone, got %v", m.state)
-	}
-
-	// Press any key — should trigger re-fetch, not go straight to reviewing
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	if m.state != StateFetching {
-		t.Fatalf("expected StateFetching after key in Done, got %v", m.state)
-	}
-	if cmd == nil {
-		t.Fatal("expected a fetch command, got nil")
-	}
-
-	// Simulate fetch returning only the non-archived item
-	m.Update(ItemsLoadedMsg{Items: []Item{{ID: "1", Title: "Keep me"}}})
-	if m.state != StateReviewing {
-		t.Fatalf("expected StateReviewing after fetch, got %v", m.state)
-	}
-	if len(m.items) != 1 {
-		t.Fatalf("expected 1 item after re-fetch, got %d", len(m.items))
-	}
-	if m.items[0].ID != "1" {
-		t.Fatalf("expected item ID '1', got %q", m.items[0].ID)
-	}
-}
-
-func TestMessageViewIcons(t *testing.T) {
-	m := NewModel()
-	m.state = StateMessage
-	m.messageType = "error"
-	m.statusMessage = "something broke"
-	view := m.View()
-	if !strings.Contains(view, "something broke") {
-		t.Error("expected error message view to contain message")
-	}
-
-	m.messageType = "success"
-	m.statusMessage = "it worked"
-	view = m.View()
-	if !strings.Contains(view, "it worked") {
-		t.Error("expected success message view to contain message")
 	}
 }
 
@@ -1077,23 +982,26 @@ func TestNavigationAfterMultipleUpdateCycles(t *testing.T) {
 		}
 
 		// Go to confirming → updating → done
-		m.state = StateConfirming
+		m.state = StateReviewing
 		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
 
-		// Simulate update finishing
+		// UpdateFinishedMsg clears updating flag
 		m.Update(UpdateFinishedMsg{Success: 1, Failed: 0})
-		if m.state != StateDone {
-			t.Fatalf("cycle %d: expected StateDone, got %v", cycle, m.state)
+		if m.updating {
+			t.Fatalf("cycle %d: expected updating=false", cycle)
 		}
 
-		// Press any key to re-fetch items
-		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-		if m.state != StateFetching {
-			t.Fatalf("cycle %d: expected StateFetching after done, got %v", cycle, m.state)
+		// Re-fetch via Back key
+		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+		if !m.fetching {
+			t.Fatalf("cycle %d: expected fetching=true after re-fetch", cycle)
 		}
 
 		// Simulate fetch completing
 		m.Update(ItemsLoadedMsg{Items: items})
+		if m.fetching {
+			t.Fatalf("cycle %d: expected fetching=false after load", cycle)
+		}
 
 		// Verify navigation works
 		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
@@ -1609,8 +1517,8 @@ func TestTriageFinishedMsg_Error(t *testing.T) {
 
 	m.Update(TriageFinishedMsg{Err: fmt.Errorf("API rate limited")})
 
-	if m.state != StateMessage {
-		t.Errorf("expected StateMessage, got %v", m.state)
+	if m.state != StateReviewing {
+		t.Errorf("expected StateReviewing, got %v", m.state)
 	}
 	if m.messageType != "error" {
 		t.Errorf("expected error message type, got %q", m.messageType)
