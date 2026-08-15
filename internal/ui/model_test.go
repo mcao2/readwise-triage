@@ -1687,7 +1687,7 @@ func TestApplyTriageResults_UnknownIDSkipped(t *testing.T) {
 	}
 }
 
-func TestBuildTriageItemsJSON(t *testing.T) {
+func TestGetTriageItems(t *testing.T) {
 	m := NewModel()
 	m.items = []Item{
 		{ID: "1", Title: "Untriaged", URL: "https://example.com/1"},
@@ -1727,7 +1727,7 @@ func TestBuildTriageItemsJSON(t *testing.T) {
 	}
 }
 
-func TestBuildTriageItemsJSON_AllTriaged(t *testing.T) {
+func TestGetTriageItems_AllTriaged(t *testing.T) {
 	m := NewModel()
 	m.items = []Item{
 		{ID: "1", Title: "Done", Action: "read_now"},
