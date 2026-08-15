@@ -584,31 +584,7 @@ func (m *Model) waitForUpdateProgress(ch chan readwise.BatchUpdateProgress, succ
 }
 
 func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// During triage: allow only navigation, open URL, help, quit
-	if m.triaging {
-		switch {
-		case keyMatches(msg, m.keys.Quit):
-			return m, tea.Quit
-		case keyMatches(msg, m.keys.Help):
-			m.showHelp = !m.showHelp
-			return m, nil
-		case keyMatches(msg, m.keys.Up):
-			m.listView.SetCursor(m.listView.Cursor() - 1)
-			return m, nil
-		case keyMatches(msg, m.keys.Down):
-			m.listView.SetCursor(m.listView.Cursor() + 1)
-			return m, nil
-		case keyMatches(msg, m.keys.Open):
-			if item := m.listView.GetItem(m.listView.Cursor()); item != nil && item.URL != "" {
-				openURL(item.URL)
-			}
-			return m, nil
-		default:
-			return m, nil
-		}
-	}
-
-	// Tag editing mode intercept
+	// Tag editing mode intercept (must run before triage guard)
 	if m.editingTags {
 		runes := []rune(m.tagsInput)
 		// Use msg.String() for word-jump bindings so both CSI sequences
@@ -664,6 +640,27 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+	}
+
+	// During triage: block global ops, allow per-item editing on non-triaging items
+	if m.triaging {
+		switch {
+		case keyMatches(msg, m.keys.Quit):
+			return m, tea.Quit
+		case keyMatches(msg, m.keys.Help):
+			m.showHelp = !m.showHelp
+			return m, nil
+		case keyMatches(msg, m.keys.AutoTriage), keyMatches(msg, m.keys.FetchMore),
+			keyMatches(msg, m.keys.Refresh), keyMatches(msg, m.keys.Back),
+			keyMatches(msg, m.keys.Update):
+			return m, nil // block global ops
+		default:
+			// Block editing on triaging items
+			if item := m.listView.GetItem(m.listView.Cursor()); item != nil && m.triagingIDs[item.ID] {
+				return m, nil
+			}
+			// Fall through to normal handling for non-triaging items
+		}
 	}
 
 	switch {
