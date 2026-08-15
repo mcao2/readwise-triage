@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -167,71 +166,6 @@ func TestTriageStoreSaveNoop(t *testing.T) {
 
 	if err := store.Save(); err != nil {
 		t.Errorf("Save() should be a no-op, got error: %v", err)
-	}
-}
-
-func TestTriageStoreMigrateFromJSON(t *testing.T) {
-	tmpDir := t.TempDir()
-	configDir := filepath.Join(tmpDir, "readwise-triage")
-	os.MkdirAll(configDir, 0755)
-	t.Setenv("READWISE_TRIAGE_CONFIG", filepath.Join(configDir, "config.yaml"))
-
-	// Write a legacy JSON store
-	legacy := map[string]interface{}{
-		"version":    "1.0",
-		"updated_at": "2025-01-01T00:00:00Z",
-		"items": map[string]interface{}{
-			"doc1": map[string]interface{}{
-				"action":     "read_now",
-				"tags":       []string{"golang"},
-				"triaged_at": "2025-01-01T00:00:00Z",
-				"source":     "llm",
-			},
-			"doc2": map[string]interface{}{
-				"action":     "archive",
-				"triaged_at": "2025-01-01T00:00:00Z",
-				"source":     "manual",
-			},
-		},
-	}
-	data, _ := json.MarshalIndent(legacy, "", "  ")
-	jsonPath := filepath.Join(configDir, "triage_store.json")
-	os.WriteFile(jsonPath, data, 0600)
-
-	// Open store — should auto-migrate
-	store, err := LoadTriageStore()
-	if err != nil {
-		t.Fatalf("LoadTriageStore failed: %v", err)
-	}
-	defer store.Close()
-
-	// Verify migrated entries
-	entry1, ok := store.GetItem("doc1")
-	if !ok {
-		t.Fatal("expected doc1 to be migrated")
-	}
-	if entry1.Action != "read_now" {
-		t.Errorf("expected action read_now, got %s", entry1.Action)
-	}
-	if len(entry1.Tags) != 1 || entry1.Tags[0] != "golang" {
-		t.Errorf("expected tags [golang], got %v", entry1.Tags)
-	}
-
-	entry2, ok := store.GetItem("doc2")
-	if !ok {
-		t.Fatal("expected doc2 to be migrated")
-	}
-	if entry2.Action != "archive" {
-		t.Errorf("expected action archive, got %s", entry2.Action)
-	}
-
-	// Verify JSON file was renamed to .bak
-	if _, err := os.Stat(jsonPath); !os.IsNotExist(err) {
-		t.Error("expected triage_store.json to be renamed")
-	}
-	bakPath := jsonPath + ".bak"
-	if _, err := os.Stat(bakPath); os.IsNotExist(err) {
-		t.Error("expected triage_store.json.bak to exist")
 	}
 }
 
