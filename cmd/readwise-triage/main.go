@@ -5,10 +5,26 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mcao2/readwise-triage/internal/config"
 	"github.com/mcao2/readwise-triage/internal/ui"
 )
 
 func main() {
+	// Load config; run interactive setup if first run
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Printf("Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	if config.NeedsSetup(cfg) {
+		cfg, err = config.Setup(cfg)
+		if err != nil {
+			fmt.Printf("Error saving config: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// Initialize the UI model
 	m := ui.NewModel()
 

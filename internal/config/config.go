@@ -190,9 +190,14 @@ func (c *Config) Save() error {
 		yaml.Unmarshal(data, existing)
 	}
 
-	// Update only the fields we manage (not tokens from env vars)
+	// Save all fields, but preserve existing token if current is empty
+	if c.ReadwiseToken != "" {
+		existing.ReadwiseToken = c.ReadwiseToken
+	}
+	if c.LLM.APIKey != "" || c.LLM.BaseURL != "" || c.LLM.Model != "" {
+		existing.LLM = c.LLM
+	}
 	existing.InboxDaysAgo = c.InboxDaysAgo
-	// Note: We preserve existing.ReadwiseToken
 
 	data, err := yaml.Marshal(existing)
 	if err != nil {
