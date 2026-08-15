@@ -245,6 +245,10 @@ func (lv *ListView) ToggleSelection() {
 	}
 }
 
+func (lv *ListView) ClearSelection() {
+	lv.selected = make(map[int]bool)
+}
+
 func (lv ListView) IsSelected(index int) bool {
 	return lv.selected[index]
 }

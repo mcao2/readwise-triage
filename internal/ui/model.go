@@ -394,6 +394,8 @@ func (m *Model) startTriaging() tea.Cmd {
 	for _, item := range items {
 		m.triagingIDs[item.ID] = true
 	}
+	m.listView.ClearSelection()
+	m.batchMode = false
 	sort.SliceStable(m.items, func(i, j int) bool {
 		iTriaging := m.triagingIDs[m.items[i].ID]
 		jTriaging := m.triagingIDs[m.items[j].ID]
