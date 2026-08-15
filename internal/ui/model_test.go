@@ -828,22 +828,13 @@ func TestStartFetchingNilConfig(t *testing.T) {
 
 func TestStartTriaging(t *testing.T) {
 	m := NewModel()
+	// No items to triage → returns nil cmd, goes to StateMessage
 	cmd := m.startTriaging()
-	if cmd == nil {
-		t.Fatal("expected command")
+	if cmd != nil {
+		t.Fatal("expected nil command when no items")
 	}
-	if m.state != StateTriaging {
-		t.Errorf("expected StateTriaging, got %v", m.state)
-	}
-
-	msg := cmd()
-	// Without LLM config, should get a TriageFinishedMsg with an error
-	tfMsg, ok := msg.(TriageFinishedMsg)
-	if !ok {
-		t.Fatalf("expected TriageFinishedMsg, got %T", msg)
-	}
-	if tfMsg.Err == nil {
-		t.Error("expected error in TriageFinishedMsg when LLM is not configured")
+	if m.state != StateMessage {
+		t.Errorf("expected StateMessage, got %v", m.state)
 	}
 }
 

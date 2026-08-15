@@ -367,7 +367,17 @@ type TriageProgressMsg struct {
 
 func (m *Model) startTriaging() tea.Cmd {
 	m.state = StateTriaging
-	m.statusMessage = "Starting LLM triage..."
+
+	// Get items synchronously (fast — just filters in-memory)
+	items, err := m.getTriageItems()
+	if err != nil {
+		m.statusMessage = fmt.Sprintf("Triage failed: %v", err)
+		m.state = StateMessage
+		return nil
+	}
+
+	numBatches := (len(items) + triageBatchSize - 1) / triageBatchSize
+	m.statusMessage = fmt.Sprintf("Triaging batch 1/%d...", numBatches)
 
 	return func() tea.Msg {
 		if m.cfg == nil {
@@ -389,12 +399,6 @@ func (m *Model) startTriaging() tea.Cmd {
 			return TriageFinishedMsg{Err: fmt.Errorf("failed to create LLM client: %w", err)}
 		}
 
-		items, err := m.getTriageItems()
-		if err != nil {
-			return TriageFinishedMsg{Err: err}
-		}
-
-		numBatches := (len(items) + triageBatchSize - 1) / triageBatchSize
 		progressChan := make(chan TriageBatchProgress)
 
 		go func() {
