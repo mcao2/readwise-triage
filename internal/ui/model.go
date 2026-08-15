@@ -203,6 +203,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.triaging = false
 		m.triagingIDs = nil
 		m.listView.SetTriagingIDs(nil)
+		m.state = StateReviewing
 		m.statusMessage = msg.Error.Error()
 		m.messageType = "error"
 
@@ -306,9 +307,9 @@ func (m *Model) startFetching() tea.Cmd {
 		m.statusMessage = "Fetching..."
 		m.state = StateReviewing
 	} else {
+		m.statusMessage = "Loading from Readwise..."
 		m.state = StateFetching
 	}
-	m.statusMessage = "Loading from Readwise..."
 
 	return func() tea.Msg {
 		if m.cfg == nil || m.cfg.ReadwiseToken == "" {
