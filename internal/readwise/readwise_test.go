@@ -251,34 +251,6 @@ func TestGetInboxItemsWithPagination(t *testing.T) {
 	}
 }
 
-func TestExtractForLLM(t *testing.T) {
-	now := FlexibleTime{Time: time.Now()}
-	items := []Item{
-		{
-			ID:        "item1",
-			Title:     "Test Article",
-			URL:       "https://example.com",
-			Category:  "article",
-			SavedAt:   now,
-			CreatedAt: now,
-			UpdatedAt: now,
-			Tags:      FlexibleTags{"tag1", "tag2"},
-		},
-	}
-
-	simplified := ExtractForLLM(items)
-
-	if len(simplified) != 1 {
-		t.Errorf("expected 1 simplified item, got %d", len(simplified))
-	}
-	if simplified[0].ID != "item1" {
-		t.Errorf("expected ID item1, got %s", simplified[0].ID)
-	}
-	if len(simplified[0].Tags) != 2 {
-		t.Errorf("expected 2 tags, got %d", len(simplified[0].Tags))
-	}
-}
-
 func TestFetchOptionsDefaults(t *testing.T) {
 	opts := DefaultFetchOptions()
 

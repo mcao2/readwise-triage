@@ -85,8 +85,3 @@ func (c *Client) fetchPage(updatedAfter, location string, cursor *string) ([]Ite
 
 	return result.Results, result.NextPageCursor, nil
 }
-
-// ExtractForLLM returns items for LLM processing
-func ExtractForLLM(items []Item) []Item {
-	return items
-}
