@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"sort"
@@ -883,6 +884,12 @@ func keyMatches(msg tea.KeyMsg, target key.Binding) bool {
 }
 
 func openURL(url string) error {
+	// On headless systems, just print the URL instead of spawning a browser
+	if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		fmt.Fprintf(os.Stderr, "\n%s\n\n", url)
+		return nil
+	}
+
 	var cmd string
 	var args []string
 
