@@ -61,7 +61,7 @@ func NewListView(width, height int) ListView {
 		Bold(false)
 	cellStyle := lipgloss.NewStyle().Padding(0, 1)
 
-	visibleRows := height - 12 - 2 // header(2) + detail(4) + status(1) + footer(4) + table header(2) - 1
+	visibleRows := height - 12 - 2 // Reserve 14 lines: header(2) + detail(4) + status(1) + footer(4) + table_header(2) + gap(1)
 	if visibleRows < 3 {
 		visibleRows = 3
 	}

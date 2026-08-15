@@ -35,9 +35,6 @@ inbox_days_ago: 7
 
 | Key | Context | Action |
 |-----|---------|--------|
-| `Enter` | Config | Start fetching items |
-| `j` / `k` | Config | Adjust lookback days (-7 / +7) |
-| `0`-`9` | Config | Type exact lookback days |
 | `j` / `k` | Review | Navigate down / up |
 | `r` | Review | Mark as **read** |
 | `l` | Review | Mark as **later** |
