@@ -428,7 +428,7 @@ func (m *Model) startTriaging() tea.Cmd {
 			return TriageFinishedMsg{Err: fmt.Errorf("failed to create LLM client: %w", err)}
 		}
 
-		// Build the items JSON (same logic as export)
+		// Build the items JSON for LLM triage
 		itemsJSON, err := m.buildTriageItemsJSON()
 		if err != nil {
 			return TriageFinishedMsg{Err: err}
@@ -1209,7 +1209,7 @@ func openURL(url string) error {
 // buildTriageItemsJSON builds the JSON payload for LLM triage.
 // Selection-aware: uses selected items if any, otherwise untriaged items.
 func (m *Model) buildTriageItemsJSON() (string, error) {
-	type exportItem struct {
+	type triageItem struct {
 		ID          string `json:"id"`
 		Title       string `json:"title"`
 		URL         string `json:"url"`
@@ -1220,7 +1220,7 @@ func (m *Model) buildTriageItemsJSON() (string, error) {
 		ReadingTime string `json:"reading_time"`
 	}
 
-	var items []exportItem
+	var items []triageItem
 	selectedIndices := m.listView.GetSelected()
 	useSelection := len(selectedIndices) > 0
 
@@ -1241,7 +1241,7 @@ func (m *Model) buildTriageItemsJSON() (string, error) {
 			continue
 		}
 
-		items = append(items, exportItem{
+		items = append(items, triageItem{
 			ID:          item.ID,
 			Title:       item.Title,
 			URL:         item.URL,

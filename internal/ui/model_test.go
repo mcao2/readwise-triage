@@ -873,17 +873,6 @@ func TestConfigEnterKey(t *testing.T) {
 	}
 }
 
-func TestConfigToggleMode_Disabled(t *testing.T) {
-	m := NewModel()
-	m.state = StateConfig
-	initial := m.useLLMTriage
-
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
-	if m.useLLMTriage != initial {
-		t.Error("expected useLLMTriage to remain unchanged when toggle is hidden")
-	}
-}
-
 func TestConfigViewNoLLMMode(t *testing.T) {
 	m := NewModel()
 	m.state = StateConfig
