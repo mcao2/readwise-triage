@@ -154,6 +154,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinnerIdx = (m.spinnerIdx + 1) % len(m.spinnerFrames)
 			m.listView.SetSpinnerChar(m.spinnerFrames[m.spinnerIdx])
 		}
+		if m.updating {
+			m.statusMessage = fmt.Sprintf("%s Updating...", m.spinner.View())
+		}
 		return m, cmd
 
 	case tea.KeyMsg:
@@ -178,6 +181,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updating = false
 		m.statusMessage = fmt.Sprintf("✓ Updated %d items (%d failed)", msg.Success, msg.Failed)
 		m.messageType = "success"
+		m.listView.ClearSelection()
+		m.batchMode = false
 		m.listView.SetItems(m.items)
 
 	case ErrorMsg:
