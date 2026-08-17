@@ -96,6 +96,9 @@ func (lv *ListView) UpdateTableStyles(theme Theme) {
 
 func (lv *ListView) SetItems(items []Item) {
 	lv.items = items
+	if lv.cursor >= len(items) {
+		lv.cursor = max(0, len(items)-1)
+	}
 	lv.updateRows()
 }
 
