@@ -749,6 +749,16 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) countUpdatable() int {
+	selected := m.listView.GetSelected()
+	if len(selected) > 0 {
+		count := 0
+		for _, idx := range selected {
+			if idx >= 0 && idx < len(m.items) && m.items[idx].Action != "" {
+				count++
+			}
+		}
+		return count
+	}
 	count := 0
 	for i := range m.items {
 		if m.items[i].Action != "" {
