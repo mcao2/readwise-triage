@@ -185,38 +185,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listView.ClearSelection()
 		m.batchMode = false
 
-		if msg.Failed == 0 && len(m.items) > 0 {
-			// All succeeded — remove pushed items from list
-			pushed := make(map[string]bool)
-			selected := m.listView.GetSelected()
-			if len(selected) > 0 {
-				for _, idx := range selected {
-					if idx >= 0 && idx < len(m.items) && m.items[idx].Action != "" {
-						pushed[m.items[idx].ID] = true
-					}
-				}
-			} else {
-				for i := range m.items {
-					if m.items[i].Action != "" {
-						pushed[m.items[i].ID] = true
-					}
-				}
-			}
-			filtered := m.items[:0]
-			for _, item := range m.items {
-				if !pushed[item.ID] {
-					filtered = append(filtered, item)
-				}
-			}
-			m.items = filtered
-			if m.listView.Cursor() >= len(m.items) && len(m.items) > 0 {
-				m.listView.SetCursor(len(m.items) - 1)
-			}
+		if msg.Failed == 0 {
 			m.statusMessage = fmt.Sprintf("✓ Updated %d items", msg.Success)
-		} else {
-			m.statusMessage = fmt.Sprintf("✓ Updated %d items (%d failed)", msg.Success, msg.Failed)
+			m.messageType = "success"
+			return m, m.startFetching()
 		}
-		m.messageType = "success"
+		m.statusMessage = fmt.Sprintf("✓ Updated %d items (%d failed)", msg.Success, msg.Failed)
+		m.messageType = "error"
 		m.listView.SetItems(m.items)
 
 	case ErrorMsg:
