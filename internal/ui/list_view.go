@@ -23,7 +23,7 @@ type ListView struct {
 	height      int
 	visibleRows int
 	columns     []Column
-	triagingIDs map[string]bool
+	spinnerIDs  map[string]bool
 	spinnerChar string
 
 	// Styles for custom rendering
@@ -99,14 +99,14 @@ func (lv *ListView) SetItems(items []Item) {
 	lv.updateRows()
 }
 
-func (lv *ListView) SetTriagingIDs(ids map[string]bool) {
-	lv.triagingIDs = ids
+func (lv *ListView) SetSpinnerIDs(ids map[string]bool) {
+	lv.spinnerIDs = ids
 	lv.updateRows()
 }
 
 func (lv *ListView) SetSpinnerChar(c string) {
 	lv.spinnerChar = c
-	if len(lv.triagingIDs) > 0 {
+	if len(lv.spinnerIDs) > 0 {
 		lv.updateRows()
 	}
 }
@@ -118,7 +118,7 @@ func (lv *ListView) updateRows() {
 		if lv.selected[i] {
 			sel = "●"
 		}
-		if lv.triagingIDs[item.ID] {
+		if lv.spinnerIDs[item.ID] {
 			sel = lv.spinnerChar
 			if sel == "" {
 				sel = "⠹"

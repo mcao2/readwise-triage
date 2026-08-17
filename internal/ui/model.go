@@ -61,6 +61,7 @@ type Model struct {
 	triagingIDs   map[string]bool
 	fetching      bool
 	updating      bool
+	updatingIDs   map[string]bool
 	confirming    bool
 	spinnerIdx    int
 	spinnerFrames []string
@@ -150,7 +151,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
-		if m.triaging {
+		if m.triaging || m.updating {
 			m.spinnerIdx = (m.spinnerIdx + 1) % len(m.spinnerFrames)
 			m.listView.SetSpinnerChar(m.spinnerFrames[m.spinnerIdx])
 		}
@@ -179,18 +180,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case UpdateFinishedMsg:
 		m.updating = false
+		m.updatingIDs = nil
+		m.listView.SetSpinnerIDs(nil)
+		m.listView.SetItems(m.items)
 		m.statusMessage = fmt.Sprintf("✓ Updated %d items (%d failed)", msg.Success, msg.Failed)
 		m.messageType = "success"
 		m.listView.ClearSelection()
 		m.batchMode = false
-		m.listView.SetItems(m.items)
 
 	case ErrorMsg:
 		m.fetching = false
 		m.updating = false
+		m.updatingIDs = nil
+		m.listView.SetSpinnerIDs(nil)
 		m.triaging = false
 		m.triagingIDs = nil
-		m.listView.SetTriagingIDs(nil)
 		m.state = StateReviewing
 		m.statusMessage = msg.Error.Error()
 		m.messageType = "error"
@@ -199,13 +203,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMessage = fmt.Sprintf("Triaging batch %d/%d...", msg.Batch, msg.Total)
 		m.applyTriageResults(msg.Results)
 		m.listView.SetItems(m.items)
-		m.listView.SetTriagingIDs(m.triagingIDs)
+		m.listView.SetSpinnerIDs(m.triagingIDs)
 		return m, m.waitForTriageProgress(msg.Channel, msg.Results)
 
 	case TriageFinishedMsg:
 		m.triaging = false
 		m.triagingIDs = nil
-		m.listView.SetTriagingIDs(nil)
+		m.listView.SetSpinnerIDs(nil)
 		m.listView.SetItems(m.items)
 		if msg.Err != nil {
 			m.statusMessage = fmt.Sprintf("LLM triage failed: %v", msg.Err)
@@ -391,7 +395,7 @@ func (m *Model) startTriaging() tea.Cmd {
 		return false
 	})
 	m.listView.SetItems(m.items)
-	m.listView.SetTriagingIDs(m.triagingIDs)
+	m.listView.SetSpinnerIDs(m.triagingIDs)
 
 	return func() tea.Msg {
 		if m.cfg == nil {
@@ -527,6 +531,13 @@ func (m *Model) startUpdating() tea.Cmd {
 	m.updating = true
 	m.statusMessage = "Preparing updates..."
 	m.confirming = false
+
+	// Mark items being updated for per-row spinner
+	m.updatingIDs = make(map[string]bool)
+	for _, u := range updates {
+		m.updatingIDs[u.DocumentID] = true
+	}
+	m.listView.SetSpinnerIDs(m.updatingIDs)
 
 	progressChan := make(chan readwise.BatchUpdateProgress)
 
