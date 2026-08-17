@@ -180,16 +180,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case UpdateFinishedMsg:
 		m.updating = false
-		m.updatingIDs = nil
 		m.listView.SetSpinnerIDs(nil)
 		m.listView.ClearSelection()
 		m.batchMode = false
 
-		if msg.Failed == 0 {
+		if msg.Failed == 0 && m.triageStore != nil && len(m.updatingIDs) > 0 {
+			// Delete triage store entries so re-fetched items come back fresh
+			ids := make([]string, 0, len(m.updatingIDs))
+			for id := range m.updatingIDs {
+				ids = append(ids, id)
+			}
+			m.triageStore.DeleteItems(ids)
+			m.updatingIDs = nil
 			m.statusMessage = fmt.Sprintf("✓ Updated %d items", msg.Success)
 			m.messageType = "success"
 			return m, m.startFetching()
 		}
+		m.updatingIDs = nil
 		m.statusMessage = fmt.Sprintf("✓ Updated %d items (%d failed)", msg.Success, msg.Failed)
 		m.messageType = "error"
 		m.listView.SetItems(m.items)
