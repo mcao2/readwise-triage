@@ -155,7 +155,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinnerIdx = (m.spinnerIdx + 1) % len(m.spinnerFrames)
 			m.listView.SetSpinnerChar(m.spinnerFrames[m.spinnerIdx])
 		}
-		if m.updating {
+		if m.updating && !strings.Contains(m.statusMessage, "Updated ") {
 			m.statusMessage = fmt.Sprintf("%s Updating...", m.spinner.View())
 		}
 		return m, cmd
@@ -184,21 +184,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listView.ClearSelection()
 		m.batchMode = false
 
-		if msg.Failed == 0 && m.triageStore != nil && len(m.updatingIDs) > 0 {
-			// Delete triage store entries so re-fetched items come back fresh
-			ids := make([]string, 0, len(m.updatingIDs))
-			for id := range m.updatingIDs {
-				ids = append(ids, id)
+		if msg.Failed == 0 && len(m.updatingIDs) > 0 {
+			// Remove pushed items from list (keep triage store for restart)
+			filtered := m.items[:0]
+			for _, item := range m.items {
+				if !m.updatingIDs[item.ID] {
+					filtered = append(filtered, item)
+				}
 			}
-			m.triageStore.DeleteItems(ids)
-			m.updatingIDs = nil
+			m.items = filtered
 			m.statusMessage = fmt.Sprintf("✓ Updated %d items", msg.Success)
 			m.messageType = "success"
-			return m, m.startFetching()
+		} else {
+			m.statusMessage = fmt.Sprintf("✓ Updated %d items (%d failed)", msg.Success, msg.Failed)
+			m.messageType = "error"
 		}
 		m.updatingIDs = nil
-		m.statusMessage = fmt.Sprintf("✓ Updated %d items (%d failed)", msg.Success, msg.Failed)
-		m.messageType = "error"
 		m.listView.SetItems(m.items)
 
 	case ErrorMsg:

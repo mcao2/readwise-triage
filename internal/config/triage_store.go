@@ -102,14 +102,6 @@ func (s *TriageStore) GetItem(id string) (TriageEntry, bool) {
 }
 
 // DeleteItems removes the given IDs from the triage store.
-func (s *TriageStore) DeleteItems(ids []string) {
-	s.mu.Lock()
-	for _, id := range ids {
-		delete(s.data, id)
-	}
-	s.mu.Unlock()
-	s.save()
-}
 
 // HasTriaged returns true if the given document ID has been triaged.
 func (s *TriageStore) HasTriaged(id string) bool {
