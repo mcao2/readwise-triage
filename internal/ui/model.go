@@ -717,13 +717,16 @@ func (m *Model) handleReviewingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(selected) > 0 {
 			for _, idx := range selected {
 				if item := m.listView.GetItem(idx); item != nil {
-					_ = openURL(item.URL)
+					if err := openURL(item.URL); err != nil {
+						m.statusMessage = fmt.Sprintf("Failed to open URL: %v", err)
+						m.messageType = "error"
+						return m, nil
+					}
 				}
 			}
 		} else if item := m.listView.GetItem(m.listView.Cursor()); item != nil {
 			if err := openURL(item.URL); err != nil {
 				m.statusMessage = fmt.Sprintf("Failed to open URL: %v", err)
-				m.messageType = "error"
 				m.messageType = "error"
 			}
 		}
@@ -909,10 +912,9 @@ func keyMatches(msg tea.KeyMsg, target key.Binding) bool {
 }
 
 func openURL(url string) error {
-	// On headless systems, just print the URL instead of spawning a browser
+	// On headless systems, no browser is available
 	if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
-		fmt.Fprintf(os.Stderr, "\n%s\n\n", url)
-		return nil
+		return fmt.Errorf("no graphical environment available")
 	}
 
 	var cmd string
